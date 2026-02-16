@@ -2,7 +2,7 @@ package su.hitori.ux.chat.channel;
 
 import net.kyori.adventure.key.Keyed;
 import org.bukkit.entity.Player;
-import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.api.DataContainer;
 
 import java.util.Set;
 

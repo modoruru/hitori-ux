@@ -1,9 +1,10 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import su.hitori.ux.storage.Identifier;
 
 public class AsyncPlayerSynchronizationEvent extends Event {
 

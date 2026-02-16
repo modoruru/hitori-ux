@@ -77,7 +77,7 @@ public final class EventCommand extends CommandAPICommand {
             return;
         }
 
-        events.storage.getUserDataContainer(sender).thenAccept(container -> {
+        events.uxModule.storage().getUserDataContainer(sender).thenAccept(container -> {
             if(events.isHidden(container, event.uuid())) return;
 
             List<UUID> hidden = container.get(Events.HIDDEN_EVENTS_FIELD);

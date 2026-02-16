@@ -1,4 +1,4 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.arguments.BooleanArgument;
@@ -13,6 +13,7 @@ import su.hitori.api.util.Task;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
+import su.hitori.ux.storage.Identifier;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -21,9 +22,9 @@ import java.util.concurrent.ExecutionException;
 
 public final class StorageCommand extends CommandAPICommand {
 
-    private final Storage storage;
+    private final DefaultStorageImpl storage;
 
-    public StorageCommand(Storage storage) {
+    public StorageCommand(DefaultStorageImpl storage) {
         super("storage");
         this.storage = storage;
 
@@ -41,13 +42,7 @@ public final class StorageCommand extends CommandAPICommand {
 
                 new CommandAPICommand("dump")
                         .withArguments(new TextArgument("name"))
-                        .executes(this::dump),
-
-                new CommandAPICommand("debug")
-                        .withArguments(new BooleanArgument("state"))
-                        .executes((sender, args) -> {
-                            storage.debug = (Boolean) args.getOrDefault("state", false);
-                        })
+                        .executes(this::dump)
         );
     }
 
@@ -126,7 +121,7 @@ public final class StorageCommand extends CommandAPICommand {
             return;
         }
 
-        if(storage.getPlayer(old) != null) {
+        if(storage.getPlayerByIdentifier(old) != null) {
             sender.sendMessage(Messages.ERROR.create("Player should be offline!"));
             return;
         }

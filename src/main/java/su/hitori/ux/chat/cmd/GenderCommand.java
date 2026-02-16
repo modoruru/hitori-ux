@@ -5,16 +5,16 @@ import dev.jorel.commandapi.executors.CommandArguments;
 import org.bukkit.entity.Player;
 import su.hitori.api.util.Messages;
 import su.hitori.ux.GenderInfluencedText;
+import su.hitori.ux.UXModule;
 import su.hitori.ux.config.UXConfiguration;
-import su.hitori.ux.storage.Storage;
 
 public final class GenderCommand extends CommandAPICommand {
 
-    private final Storage storage;
+    private final UXModule uxModule;
 
-    public GenderCommand(Storage storage) {
+    public GenderCommand(UXModule uxModule) {
         super("gender");
-        this.storage = storage;
+        this.uxModule = uxModule;
 
         withSubcommands(
                 new CommandAPICommand("man")
@@ -35,7 +35,7 @@ public final class GenderCommand extends CommandAPICommand {
     private void setGender(Player player, boolean man) {
         var config = UXConfiguration.I.chat.gender;
 
-        storage.getUserDataContainer(player).thenAccept(container -> {
+        uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
             if("man".equals(container.getOrDefault(GenderInfluencedText.GENDER_FIELD, "man")) == man) {
                 player.sendMessage(Messages.ERROR.create(man ? config.already_man : config.already_woman));
                 return;

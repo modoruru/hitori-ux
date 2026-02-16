@@ -1,4 +1,4 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import com.destroystokyo.paper.profile.PlayerProfile;
 import io.papermc.paper.event.player.PlayerServerFullCheckEvent;
@@ -16,11 +16,11 @@ import java.util.UUID;
 
 public final class StorageListener implements Listener {
 
-    private final Storage storage;
+    private final DefaultStorageImpl storage;
     private final boolean resourcepackExists;
     private final Set<Player> previouslyLoaded;
 
-    public StorageListener(Storage storage, boolean resourcepackExists) {
+    public StorageListener(DefaultStorageImpl storage, boolean resourcepackExists) {
         this.storage = storage;
         this.resourcepackExists = resourcepackExists;
         this.previouslyLoaded = new HashSet<>();

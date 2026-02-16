@@ -24,10 +24,10 @@ import su.hitori.ux.permission.DefaultPermission;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.Storage;
+import su.hitori.ux.storage.api.DataContainer;
+import su.hitori.ux.storage.api.Storage;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
 import java.net.URI;
@@ -78,7 +78,6 @@ public final class Chat {
             CHAT_IGNORING_FIELD = new DataField<>("chat_ignoring", SET_CODEC);
 
     private final UXModule uxModule;
-    private final Storage storage;
     private final ChatRegistries chatRegistries;
 
     private final Map<UUID, SharedInventoryContainer> sharedInventories;
@@ -89,7 +88,6 @@ public final class Chat {
 
     public Chat(UXModule uxModule) {
         this.uxModule = uxModule;
-        this.storage = uxModule.storage();
         this.chatRegistries = new ChatRegistries();
 
         this.sharedInventories = new HashMap<>();
@@ -262,7 +260,7 @@ public final class Chat {
 
         var localChatConfig = chatConfig.localChat;
 
-        Storage storage = uxModule.storage();
+        Storage<DataContainer> storage = uxModule.storage();
         DataContainer senderContainer;
         try {
             senderContainer = storage.getUserDataContainer(sender).get();
@@ -341,6 +339,7 @@ public final class Chat {
     }
 
     public void sendDirectMessage(Player sender, Player receiver, String message) {
+        Storage<DataContainer> storage = uxModule.storage();
         var senderFuture = storage.getUserDataContainer(sender);
         storage.getUserDataContainer(receiver)
                 .thenCombine(senderFuture, (receiverContainer, senderContainer) -> Pair.of(
@@ -425,10 +424,6 @@ public final class Chat {
         lastDM.put(receiverName, senderName);
     }
 
-    public void clearLastDMs() {
-        lastDM.clear();
-    }
-
     // shared inventories
     public void deleteSharedInventory(Player player) {
         UUID sharedInventoryUuid = playerToTheirSharedInventory.get(player);
@@ -456,7 +451,7 @@ public final class Chat {
         Set<Identifier> identifiers = new HashSet<>();
         for (UUID uuid : getIgnoringSet(identifier, ignoringType)) {
             try {
-                identifiers.add(storage.getIdentifierByUUID(uuid).get());
+                identifiers.add(uxModule.storage().getIdentifierByUUID(uuid).get());
             }
             catch (Throwable _) {
             }
@@ -498,7 +493,7 @@ public final class Chat {
 
     private Optional<DataContainer> getDataContainer(Identifier identifier) {
         try {
-            return Optional.ofNullable(storage.getUserDataContainer(identifier, true, false).get());
+            return Optional.ofNullable(uxModule.storage().getUserDataContainer(identifier, true, false).get());
         }
         catch (Throwable ex) {
             return Optional.empty();

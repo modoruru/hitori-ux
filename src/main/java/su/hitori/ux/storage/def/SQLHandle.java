@@ -1,4 +1,4 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import org.jetbrains.annotations.NotNull;
 

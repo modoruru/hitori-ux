@@ -1,5 +1,7 @@
 package su.hitori.ux.storage;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.Objects;
 import java.util.UUID;
 
@@ -15,7 +17,7 @@ public final class Identifier {
      * @param gameUuid minecraft uuid
      * @param gameName minecraft username
      */
-    Identifier(UUID uuid, UUID gameUuid, String gameName) {
+    public Identifier(@NotNull UUID uuid, @NotNull UUID gameUuid, @NotNull String gameName) {
         this.uuid = uuid;
         this.gameUuid = gameUuid;
         this.gameName = gameName;

@@ -287,12 +287,19 @@ public final class UXConfiguration extends Configuration {
     }
 
     public static final class Storage {
-        @Comment(value = {@CommentValue(" mysql, h2")})
-        public String type = "h2";
-        public String host = "localhost:3306";
-        public String database = "database";
-        public String user = "root";
-        public String password = "root";
+        @Comment(value = {@CommentValue(" default or thirdparty. leave thirdparty if you want other module to replace storage logic")})
+        public String implementation = "default";
+
+        public DefaultImplementation defaultImplementation = new DefaultImplementation();
+
+        public static final class DefaultImplementation {
+            @Comment(value = {@CommentValue(" mysql, h2")})
+            public String type = "h2";
+            public String host = "localhost:3306";
+            public String database = "database";
+            public String user = "root";
+            public String password = "root";
+        }
     }
 
     public static final class GenderInfluencedText implements ConvertableObject<su.hitori.ux.GenderInfluencedText> {

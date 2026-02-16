@@ -1,9 +1,12 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import su.hitori.api.util.UnsafeUtil;
+import su.hitori.ux.storage.DataField;
+import su.hitori.ux.storage.Identifier;
+import su.hitori.ux.storage.api.DataContainer;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
 import java.util.HashMap;
@@ -11,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-public final class DataContainer {
+public final class DefaultDataContainerImpl implements DataContainer {
 
     static final int RETAINING_TIME_SECONDS = 15;
 
@@ -26,7 +29,7 @@ public final class DataContainer {
     );
 
     private final Identifier identifier;
-    private final BiConsumer<DataContainer, Boolean> saveFunction;
+    private final BiConsumer<DefaultDataContainerImpl, Boolean> saveFunction;
     private final Set<DataField<?>> fields;
     private final long initialSizeInBytes;
 
@@ -37,7 +40,7 @@ public final class DataContainer {
     boolean fresh;
     private boolean closed;
 
-    DataContainer(Identifier identifier, BiConsumer<DataContainer, Boolean> saveFunction, Set<DataField<?>> fields, long initialSizeInBytes, boolean temporary, JSONObject json) {
+    DefaultDataContainerImpl(Identifier identifier, BiConsumer<DefaultDataContainerImpl, Boolean> saveFunction, Set<DataField<?>> fields, long initialSizeInBytes, boolean temporary, JSONObject json) {
         this.identifier = identifier;
         this.saveFunction = saveFunction;
         this.fields = fields;
@@ -64,10 +67,12 @@ public final class DataContainer {
         }
     }
 
+    @Override
     public Identifier identifier() {
         return identifier;
     }
 
+    @Override
     public long initialSizeInBytes() {
         return initialSizeInBytes;
     }
@@ -94,7 +99,7 @@ public final class DataContainer {
         return json;
     }
 
-    public void save() {
+    void save() {
         if(closed) return;
         saveFunction.accept(this, false);
     }
@@ -106,10 +111,12 @@ public final class DataContainer {
         closed = true;
     }
 
+    @Override
     public boolean isClosed() {
         return closed;
     }
 
+    @Override
     public <E> @Nullable E get(DataField<E> field) {
         if(closed) throw new IllegalStateException("DataView is closed");
         if(!fields.contains(field)) throw new IllegalArgumentException("Such field is not registered in scheme");
@@ -119,12 +126,7 @@ public final class DataContainer {
         return UnsafeUtil.cast(values.get(field));
     }
 
-    public <E> E getOrDefault(DataField<E> field, E defaultElement) {
-        E element = get(field);
-        if(element != null) return element;
-        return defaultElement;
-    }
-
+    @Override
     public <E> void set(DataField<E> field, @Nullable E value) {
         if(closed) throw new IllegalStateException("DataView is closed");
         if(!fields.contains(field)) throw new IllegalArgumentException("Such field is not registered in scheme");

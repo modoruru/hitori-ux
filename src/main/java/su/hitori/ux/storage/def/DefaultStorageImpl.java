@@ -1,4 +1,4 @@
-package su.hitori.ux.storage;
+package su.hitori.ux.storage.def;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -11,6 +11,9 @@ import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.Either;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
+import su.hitori.ux.storage.DataField;
+import su.hitori.ux.storage.Identifier;
+import su.hitori.ux.storage.api.Storage;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -26,7 +29,7 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-public final class Storage {
+public final class DefaultStorageImpl implements Storage<DefaultDataContainerImpl> {
 
     public boolean debug = false;
 
@@ -38,15 +41,16 @@ public final class Storage {
             ""
     );
 
-    private static final Logger LOGGER = LoggerFactory.instance().create(Storage.class);
+    private static final Logger LOGGER = LoggerFactory.instance().create(DefaultStorageImpl.class);
 
-    private final BiConsumer<DataContainer, Boolean> SAVE_FUNCTION = this::save;
+    private final BiConsumer<DefaultDataContainerImpl, Boolean> SAVE_FUNCTION = this::save;
 
+    private final String url, user, password;
     private final ExecutorService executorService;
 
     private final SQLHandle sqlHandle;
-    private final Map<Identifier, CompletableFuture<@Nullable DataContainer>> requestCache;
-    private final Map<Identifier, DataContainer> dataCache;
+    private final Map<Identifier, CompletableFuture<@Nullable DefaultDataContainerImpl>> requestCache;
+    private final Map<Identifier, DefaultDataContainerImpl> dataCache;
     private final Map<String, Identifier> identifierCache;
     private final CompletableFuture<Void> openFuture;
 
@@ -57,7 +61,10 @@ public final class Storage {
     private Task saveTask;
     private Task removeTemporaryTask;
 
-    public Storage(ScheduledExecutorService executorService) {
+    public DefaultStorageImpl(String url, String user, String password, ScheduledExecutorService executorService) {
+        this.url = url;
+        this.user = user;
+        this.password = password;
         this.executorService = executorService;
 
         this.sqlHandle = new SQLHandle();
@@ -90,7 +97,7 @@ public final class Storage {
 
         // save their current state
         Map<Identifier, JSONObject> json = new HashMap<>();
-        for (DataContainer value : dataCache.values()) {
+        for (DefaultDataContainerImpl value : dataCache.values()) {
             json.put(value.identifier(), value.encode());
         }
 
@@ -99,7 +106,7 @@ public final class Storage {
         userDataScheme.addAll(fieldsSet);
 
         // reinitialize them - all objects will get new instances with probably new classes
-        for (DataContainer value : dataCache.values()) {
+        for (DefaultDataContainerImpl value : dataCache.values()) {
             value.initialize(json.get(value.identifier()));
         }
     }
@@ -116,13 +123,8 @@ public final class Storage {
         return openFuture.isDone();
     }
 
-    private <T> CompletableFuture<T> supplyAsync(Supplier<T> supplier) {
-        if(isInitialized()) return CompletableFuture.supplyAsync(supplier, executorService);
-        else if(closed) return CompletableFuture.completedFuture(null);
-        return openFuture.thenCompose(_ -> CompletableFuture.supplyAsync(supplier, executorService));
-    }
-
-    public void open(String url, String user, String password, boolean syncAllPlayers) {
+    @Override
+    public void open(boolean syncAllPlayers) {
         if(isInitialized()) return;
 
         CompletableFuture.supplyAsync(() -> {
@@ -150,8 +152,8 @@ public final class Storage {
                 removeTemporaryTask = Task.runTaskTimerGlobally(() -> executorService.execute(() -> {
 
                     Set<Identifier> toClose = new HashSet<>();
-                    for (DataContainer container : dataCache.values()) {
-                        if(container.temporary && System.currentTimeMillis() > (container.lastAccess + DataContainer.RETAINING_TIME_SECONDS * 1000L)) {
+                    for (DefaultDataContainerImpl container : dataCache.values()) {
+                        if(container.temporary && System.currentTimeMillis() > (container.lastAccess + DefaultDataContainerImpl.RETAINING_TIME_SECONDS * 1000L)) {
                             toClose.add(container.identifier());
                             LOGGER.warning(container.identifier() + " is temp and not been accessed in last 15 seconds - closing it");
                         }
@@ -172,12 +174,18 @@ public final class Storage {
         });
     }
 
+    private <T> CompletableFuture<T> supplyAsync(Supplier<T> supplier) {
+        if(isInitialized()) return CompletableFuture.supplyAsync(supplier, executorService);
+        else if(closed) return CompletableFuture.completedFuture(null);
+        return openFuture.thenCompose(_ -> CompletableFuture.supplyAsync(supplier, executorService));
+    }
+
     @SuppressWarnings("CallToPrintStackTrace") // we should close ignoring all the errors - shutdown should be as smooth as possible
     public void close() {
         if(!isInitialized() || closed) return;
 
         requestCache.clear();
-        dataCache.values().forEach(DataContainer::close);
+        dataCache.values().forEach(DefaultDataContainerImpl::close);
         dataCache.clear();
         identifierCache.clear();
 
@@ -259,17 +267,22 @@ public final class Storage {
     }
 
     public @NotNull CompletableFuture<Identifier> getIdentifierByUUID(@NotNull UUID uuid) {
-        return getIdentifier(uuid, null);
+        return getIdentifier(Either.ofFirst(uuid));
     }
 
     public @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName) {
         Identifier identifier = identifierCache.get(gameName.toLowerCase());
         if(identifier != null) return CompletableFuture.completedFuture(identifier);
 
-        return getIdentifier(null, gameName);
+        return getIdentifier(Either.ofSecond(gameName));
     }
 
-    public void createIdentifierIfAbsent(@NotNull UUID gameUuid, @NotNull String gameName) {
+    @Override
+    public Player getPlayerByIdentifier(Identifier identifier) {
+        return Bukkit.getPlayer(identifier.gameName());
+    }
+
+    void createIdentifierIfAbsent(@NotNull UUID gameUuid, @NotNull String gameName) {
         getIdentifierByGameName(gameName).thenAccept(resolved -> {
             if (resolved != null) return;
 
@@ -291,15 +304,15 @@ public final class Storage {
         return Bukkit.getPlayer(identifier.gameName());
     }
 
-    public CompletableFuture<DataContainer> getServerDataContainer() {
+    public CompletableFuture<DefaultDataContainerImpl> getServerDataContainer() {
         return getUserDataContainer(SERVER_DATA_IDENTIFIER, true, true);
     }
 
-    public CompletableFuture<@Nullable DataContainer> getUserDataContainer(Player player) {
+    public CompletableFuture<@Nullable DefaultDataContainerImpl> getUserDataContainer(Player player) {
         return getIdentifierByGameName(player.getName()).thenCompose(identifier -> getUserDataContainer(identifier, true, false));
     }
 
-    public CompletableFuture<@Nullable DataContainer> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache) {
+    public CompletableFuture<@Nullable DefaultDataContainerImpl> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache) {
         if(identifier == null) {
             if(debug)
                 LOGGER.warning("returned null container because id was null");
@@ -331,15 +344,15 @@ public final class Storage {
         });
     }
 
-    public CompletableFuture<@Nullable Identifier> getIdentifier(UUID uuid, String gameName) {
-        if(uuid == null && gameName == null)
-            return CompletableFuture.completedFuture(null);
+    @Override
+    public CompletableFuture<@Nullable Identifier> getIdentifier(Either<UUID, String> uuidOrGameName) {
+        String gameName = uuidOrGameName.secondOptional().orElse(null);
 
         Identifier cachedIdentifier;
         if(gameName != null && (cachedIdentifier = identifierCache.get(gameName.toLowerCase())) != null)
             return CompletableFuture.completedFuture(cachedIdentifier);
 
-        return supplyAsync(() -> queryIdentifier(uuid, gameName))
+        return supplyAsync(() -> queryIdentifier(uuidOrGameName.firstOptional().orElse(null), gameName))
                 .thenApply(
                         either -> either.firstOptional()
                                 .orElse(Optional.empty())
@@ -371,7 +384,7 @@ public final class Storage {
         }
     }
 
-    private Either<DataContainer, Throwable> queryDataContainer(Identifier identifier, boolean cache) {
+    private Either<DefaultDataContainerImpl, Throwable> queryDataContainer(Identifier identifier, boolean cache) {
         try(PreparedStatement statement = sqlHandle.prepareStatement("SELECT body FROM users WHERE uuid = ?")) {
             boolean isServer = identifier.equals(SERVER_DATA_IDENTIFIER);
 
@@ -392,7 +405,7 @@ public final class Storage {
                 }
             }
 
-            DataContainer container = new DataContainer(identifier, SAVE_FUNCTION, isServer ? serverDataScheme : userDataScheme, bytesSize, !cache, json);
+            DefaultDataContainerImpl container = new DefaultDataContainerImpl(identifier, SAVE_FUNCTION, isServer ? serverDataScheme : userDataScheme, bytesSize, !cache, json);
             this.dataCache.put(identifier, container);
             return Either.ofFirst(container);
         }
@@ -429,12 +442,12 @@ public final class Storage {
             LOGGER.warning("INSERT IDENTIFIER END: " + identifier);
     }
 
-    void save(DataContainer container, boolean async) {
+    void save(DefaultDataContainerImpl container, boolean async) {
         if(async) executorService.execute(() -> saveInternal(container));
         else saveInternal(container);
     }
 
-    void saveInternal(DataContainer container) {
+    void saveInternal(DefaultDataContainerImpl container) {
         JSONObject json = container.encode();
         if(json == null) json = new JSONObject();
 
@@ -461,7 +474,7 @@ public final class Storage {
     }
 
     void saveAll() {
-        dataCache.values().forEach(DataContainer::save);
+        dataCache.values().forEach(DefaultDataContainerImpl::save);
     }
 
     void quit(Player player) {
@@ -470,7 +483,7 @@ public final class Storage {
             LOGGER.warning(player.getName() + " is quit, closing container. identifier null? " + (identifier == null));
         if(identifier == null) return; // is it right? idk test later
 
-        DataContainer container = dataCache.get(identifier);
+        DefaultDataContainerImpl container = dataCache.get(identifier);
         if(container == null) return;
         if(debug)
             LOGGER.warning(identifier + " turned temprorary.");
@@ -479,7 +492,7 @@ public final class Storage {
     }
 
     void quit(Identifier identifier) {
-        DataContainer container = dataCache.remove(identifier);
+        DefaultDataContainerImpl container = dataCache.remove(identifier);
         requestCache.remove(identifier);
         if(container == null) return;
         container.close();

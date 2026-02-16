@@ -8,6 +8,7 @@ import su.hitori.api.module.Module;
 import su.hitori.api.module.ModuleDescriptor;
 import su.hitori.api.module.compatibility.CompatibilityLayer;
 import su.hitori.api.module.enable.EnableContext;
+import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.advertisement.Advertisements;
 import su.hitori.ux.chat.Chat;
 import su.hitori.ux.chat.ChatListener;
@@ -19,9 +20,11 @@ import su.hitori.ux.event.Events;
 import su.hitori.ux.nametag.NameTags;
 import su.hitori.ux.nametag.NameTagsListener;
 import su.hitori.ux.notification.Notifications;
-import su.hitori.ux.storage.Storage;
-import su.hitori.ux.storage.StorageCommand;
-import su.hitori.ux.storage.StorageListener;
+import su.hitori.ux.storage.def.DefaultStorageImpl;
+import su.hitori.ux.storage.def.StorageCommand;
+import su.hitori.ux.storage.def.StorageListener;
+import su.hitori.ux.storage.api.DataContainer;
+import su.hitori.ux.storage.api.Storage;
 import su.hitori.ux.stream.StreamCommand;
 import su.hitori.ux.stream.StreamListener;
 import su.hitori.ux.stream.Streams;
@@ -42,7 +45,10 @@ public final class UXModule extends Module {
     private final AtomicReference<ModuleDescriptor> resourcePackModuleReference = new AtomicReference<>();
 
     private ScheduledExecutorService executorService;
-    private Storage storage;
+
+    private Storage<? extends DataContainer> storage;
+    private boolean thirdPartyStorage;
+
     private Advertisements advertisements;
     private Chat chat;
     private NameTags nameTags;
@@ -66,20 +72,45 @@ public final class UXModule extends Module {
         new UXConfiguration(defaultConfig()).reload();
 
         executorService = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
-        storage = new Storage(executorService);
+
+        // init storage
+        var storageConfig = UXConfiguration.I.storage;
+        if(!storageConfig.implementation.equalsIgnoreCase("default")) thirdPartyStorage = true;
+        else {
+            var implementationConfig = storageConfig.defaultImplementation;
+
+            String url, user = "sa", password = "";
+            switch (implementationConfig.type) {
+                case "h2" -> url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
+                case "mysql" -> {
+                    url = String.format("jdbc:mysql://%s/%s", implementationConfig.host, implementationConfig.database);
+                    user = implementationConfig.user;
+                    password = implementationConfig.password;
+                }
+                default -> {
+                    LOGGER.warning("Wrong database type. Only allowed is: \"mysql\" and \"h2\". Local database (h2) will be loaded.");
+                    url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
+                }
+            }
+
+            DefaultStorageImpl storage = new DefaultStorageImpl(url, user, password, executorService);
+            this.storage = storage;
+            context.listeners().register(new StorageListener(
+                    storage,
+                    Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
+            ));
+            context.commands().register(new StorageCommand(storage));
+        }
+
         advertisements = new Advertisements();
         chat = new Chat(this);
         nameTags = new NameTags(resourcePackModuleReference);
         tab = new Tab(this);
         notifications = new Notifications();
         events = new Events(this);
-        streams = new Streams(storage);
+        streams = new Streams(this);
 
         context.listeners().register(
-                new StorageListener(
-                        storage,
-                        Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
-                ),
                 new NameTagsListener(nameTags),
                 new TabListener(tab),
                 new EventListener(events),
@@ -94,17 +125,16 @@ public final class UXModule extends Module {
                     new OpenSharedInventoryCommand(chat),
                     new IgnoreCommand(this, true),
                     new IgnoreCommand(this, false),
-                    new SpyCommand(storage),
+                    new SpyCommand(this),
                     new ReplyCommand(chat),
                     new HelloCommand(chat)
             );
         }
 
         context.commands().register(
-                new GenderCommand(storage),
+                new GenderCommand(this),
                 new EventCommand(events),
-                new StreamCommand(this),
-                new StorageCommand(storage)
+                new StreamCommand(this)
         );
 
         advertisements.start();
@@ -127,27 +157,14 @@ public final class UXModule extends Module {
         );
 
         context.enableHooksFuture().thenRun(() -> {
-            var storageConfig = UXConfiguration.I.storage;
-
-            String url, user = "sa", password = "";
-            switch (storageConfig.type) {
-                case "h2" -> url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
-                case "mysql" -> {
-                    url = String.format("jdbc:mysql://%s/%s", storageConfig.host, storageConfig.database);
-                    user = storageConfig.user;
-                    password = storageConfig.password;
-                }
-                default -> {
-                    LOGGER.warning("Wrong database type. Only allowed is: \"mysql\" and \"h2\". Local database (h2) will be loaded.");
-                    url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
-                }
+            if(thirdPartyStorage && storage == null) {
+                // todo: maybe add a logic to framework to disable module manually
+                LOGGER.severe("Module finished loading but Storage implementation was not installed. Module will not work normally");
+                return;
             }
-            storage.open(
-                    url,
-                    user,
-                    password,
-                    context.hasEnabledBefore()
-            );
+
+            storage.open(context.hasEnabledBefore());
+            streams.load();
         });
     }
 
@@ -170,8 +187,13 @@ public final class UXModule extends Module {
         return executorService;
     }
 
-    public Storage storage() {
-        return storage;
+    public void installStorage(Storage<? extends DataContainer> storage) {
+        if(!thirdPartyStorage || this.storage != null) return;
+        this.storage = storage;
+    }
+
+    public Storage<DataContainer> storage() {
+        return UnsafeUtil.cast(storage);
     }
 
     public Chat chat() {

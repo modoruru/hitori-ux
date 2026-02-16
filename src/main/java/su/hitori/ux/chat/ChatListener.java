@@ -20,8 +20,8 @@ import su.hitori.ux.chat.event.AsyncFirstVisitMessageEvent;
 import su.hitori.ux.chat.event.AsyncPlayerOnlineMessageEvent;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.AsyncPlayerSynchronizationEvent;
-import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
+import su.hitori.ux.storage.api.DataContainer;
 
 import java.util.*;
 import java.util.stream.Collectors;

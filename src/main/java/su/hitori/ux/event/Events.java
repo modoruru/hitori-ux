@@ -14,9 +14,8 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
-import su.hitori.ux.storage.Storage;
+import su.hitori.ux.storage.api.DataContainer;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
 import java.time.Instant;
@@ -72,7 +71,7 @@ public final class Events {
     );
 
     private final ExecutorService executorService;
-    final Storage storage;
+    final UXModule uxModule;
 
     private boolean loaded;
     private boolean loading;
@@ -81,7 +80,7 @@ public final class Events {
 
     public Events(UXModule uxModule) {
         this.executorService = uxModule.executorService();
-        this.storage = uxModule.storage();
+        this.uxModule = uxModule;
 
         String rawTimeZone = UXConfiguration.I.events.timeZone;
         TimeZone timeZone = TimeZone.getTimeZone(rawTimeZone);
@@ -96,7 +95,7 @@ public final class Events {
         if(loaded || loading) return;
 
         loading = true;
-        storage.getServerDataContainer().thenAccept(container -> {
+        uxModule.storage().getServerDataContainer().thenAccept(container -> {
             loaded = true;
             loading = false;
             this.activeEvents = new HashMap<>();
@@ -109,7 +108,7 @@ public final class Events {
             onStartReminderTask = Task.runTaskTimerAsync(this::onStartReminderTick, 0L, 20L);
         });
     }
-    
+
     boolean isHidden(DataContainer container, UUID uuid) {
         List<UUID> hidden = container.get(HIDDEN_EVENTS_FIELD);
         return hidden != null && hidden.contains(uuid);
@@ -122,8 +121,8 @@ public final class Events {
             if(diff <= 0 || diff >= 1000) continue;
 
             Bukkit.getOnlinePlayers().forEach(player -> {
-                executorService.execute(() -> storage.getUserDataContainer(player).thenAccept(container -> {
-                    if(isHidden(container, event.uuid())) return;
+                executorService.execute(() -> uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
+                    if(container == null || isHidden(container, event.uuid())) return;
 
                     showReminder(player, event);
                 }));
@@ -210,7 +209,7 @@ public final class Events {
     }
 
     public CompletableFuture<List<Event>> getNonHiddenActiveEvents(Player player) {
-        return storage.getUserDataContainer(player).thenApply(container -> {
+        return uxModule.storage().getUserDataContainer(player).thenApply(container -> {
             List<UUID> hidden = container.get(HIDDEN_EVENTS_FIELD);
             if(hidden == null) return activeEvents();
 
@@ -229,7 +228,7 @@ public final class Events {
     }
 
     private void save() {
-        storage.getServerDataContainer().thenAccept(
+        uxModule.storage().getServerDataContainer().thenAccept(
                 container -> container.set(ACTIVE_EVENTS_FIELD, List.copyOf(activeEvents.values()))
         );
     }

@@ -6,7 +6,7 @@ import su.hitori.api.util.Text;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.AsyncPlayerSynchronizationEvent;
+import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 
 import java.net.URL;
 

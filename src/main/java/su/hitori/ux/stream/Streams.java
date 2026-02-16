@@ -7,14 +7,14 @@ import org.json.JSONObject;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.Sound;
+import su.hitori.ux.UXModule;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.Storage;
+import su.hitori.ux.storage.api.DataContainer;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -25,20 +25,24 @@ public final class Streams {
 
     public static final DataField<JSONObject> ONGOING_STREAMS_FIELD = new DataField<>("ongoing_streams", DataField.castCodec());
 
-    private final Storage storage;
+    private final UXModule uxModule;
     private final Set<String> allowedDomains;
 
     private final Map<Identifier, StreamInfo> ongoingStreams;
 
-    public Streams(Storage storage) {
-        this.storage = storage;
+    public Streams(UXModule uxModule) {
+        this.uxModule = uxModule;
         this.allowedDomains = new HashSet<>();
         this.ongoingStreams = new HashMap<>();
         for (String allowedDomain : UXConfiguration.I.streams.allowedDomains) {
             allowedDomains.add(allowedDomain.toLowerCase());
         }
 
-        storage.getServerDataContainer().thenAccept(this::load);
+        uxModule.storage().getServerDataContainer().thenAccept(this::load);
+    }
+
+    public void load() {
+        uxModule.storage().getServerDataContainer().thenAccept(this::load);
     }
 
     private void load(DataContainer serverContainer) {
@@ -53,14 +57,14 @@ public final class Streams {
                 continue;
             }
 
-            storage.getIdentifierByUUID(UUID.fromString(key)).thenAccept(identifier ->
+            uxModule.storage().getIdentifierByUUID(UUID.fromString(key)).thenAccept(identifier ->
                 ongoingStreams.put(identifier, new StreamInfo(identifier, url))
             );
         }
     }
 
     private void submitUpdate() {
-        storage.getServerDataContainer().thenAccept(container -> {
+        uxModule.storage().getServerDataContainer().thenAccept(container -> {
             JSONObject json = new JSONObject();
             for (Map.Entry<Identifier, StreamInfo> entry : ongoingStreams.entrySet()) {
                 json.put(

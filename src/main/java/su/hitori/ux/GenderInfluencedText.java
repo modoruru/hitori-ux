@@ -1,8 +1,7 @@
 package su.hitori.ux;
 
-
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
+import su.hitori.ux.storage.api.DataContainer;
 
 public final class GenderInfluencedText {
 

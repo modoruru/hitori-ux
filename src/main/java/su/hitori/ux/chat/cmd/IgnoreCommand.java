@@ -19,9 +19,9 @@ import su.hitori.ux.chat.IgnoringType;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.Storage;
+import su.hitori.ux.storage.api.DataContainer;
+import su.hitori.ux.storage.api.Storage;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,13 +33,13 @@ import java.util.stream.Collectors;
 public final class IgnoreCommand extends CommandAPICommand {
 
     private final Chat chat;
-    private final Storage storage;
+    private final UXModule uxModule;
     private final boolean newIgnoringState;
 
     public IgnoreCommand(UXModule uxModule, boolean newIgnoringState) {
         super(newIgnoringState ? "ignore" : "unignore");
         this.chat = uxModule.chat();
-        this.storage = uxModule.storage();
+        this.uxModule = uxModule;
         this.newIgnoringState = newIgnoringState;
 
         withSubcommands(
@@ -59,6 +59,7 @@ public final class IgnoreCommand extends CommandAPICommand {
         String playerName = (String) args.get("player");
         assert playerName != null;
 
+        Storage<DataContainer> storage = uxModule.storage();
         CompletableFuture<DataContainer> senderFuture = storage.getUserDataContainer(sender);
         storage.getIdentifierByGameName(playerName)
                 .thenCompose(identifier -> storage.getUserDataContainer(identifier, true, false))
@@ -135,7 +136,7 @@ public final class IgnoreCommand extends CommandAPICommand {
     private void list0(Player sender) {
         Identifier senderId;
         try {
-            senderId = storage.getIdentifierByGameName(sender.getName()).get();
+            senderId = uxModule.storage().getIdentifierByGameName(sender.getName()).get();
         }
         catch (Throwable ex) {
             return;
