@@ -35,6 +35,7 @@ public final class UXConfiguration extends Configuration {
     }
 
     public static final class NameTags {
+        public boolean enabled = true;
         public String format = "%player_name%";
         public boolean background = true;
     }

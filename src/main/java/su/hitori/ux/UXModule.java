@@ -111,7 +111,6 @@ public final class UXModule extends Module {
         streams = new Streams(this);
 
         context.listeners().register(
-                new NameTagsListener(nameTags),
                 new TabListener(tab),
                 new EventListener(events),
                 new StreamListener(streams)
@@ -131,6 +130,11 @@ public final class UXModule extends Module {
             );
         }
 
+        if(UXConfiguration.I.nameTags.enabled) {
+            context.listeners().register(new NameTagsListener(nameTags));
+            nameTags.start();
+        }
+
         context.commands().register(
                 new GenderCommand(this),
                 new EventCommand(events),
@@ -138,7 +142,6 @@ public final class UXModule extends Module {
         );
 
         advertisements.start();
-        nameTags.start();
         tab.start();
         events.load();
 

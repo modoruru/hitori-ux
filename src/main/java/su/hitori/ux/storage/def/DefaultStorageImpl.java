@@ -300,10 +300,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         }).join();
     }
 
-    public Player getPlayer(Identifier identifier) {
-        return Bukkit.getPlayer(identifier.gameName());
-    }
-
     public CompletableFuture<DefaultDataContainerImpl> getServerDataContainer() {
         return getUserDataContainer(SERVER_DATA_IDENTIFIER, true, true);
     }
