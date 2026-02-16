@@ -15,7 +15,7 @@ This repo contains UX (user experience) module for [hitori](https://github.com/m
 - Events & Streams announcements
 
 ## Usage
-You can get a jar from [Actions](https://github.com/modoruru/hitori-ux/actions) tab. Module is built almost every commit.\
+You can get a jar from [Actions](https://github.com/modoruru/hitori-ux/actions) tab. Module is built after almost every commit.\
 Also, you can get module from [Releases](https://github.com/modoruru/hitori-ux/releases) (if there's any).
 
 After downloading the jar, just put it into hitori folder. Then restart the server.
