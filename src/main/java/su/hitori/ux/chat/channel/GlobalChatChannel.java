@@ -5,7 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import su.hitori.ux.config.UXConfiguration;
-import su.hitori.ux.storage.api.DataContainer;
+import su.hitori.ux.storage.DataContainer;
 
 import java.util.HashSet;
 import java.util.Set;

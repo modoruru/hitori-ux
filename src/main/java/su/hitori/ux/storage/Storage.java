@@ -1,11 +1,9 @@
-package su.hitori.ux.storage.api;
+package su.hitori.ux.storage;
 
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import su.hitori.api.util.Either;
-import su.hitori.ux.storage.DataField;
-import su.hitori.ux.storage.Identifier;
 
 import java.util.Set;
 import java.util.UUID;

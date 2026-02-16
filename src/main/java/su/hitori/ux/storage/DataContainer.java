@@ -1,7 +1,4 @@
-package su.hitori.ux.storage.api;
-
-import su.hitori.ux.storage.DataField;
-import su.hitori.ux.storage.Identifier;
+package su.hitori.ux.storage;
 
 import javax.annotation.Nullable;
 

@@ -20,8 +20,8 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.api.DataContainer;
-import su.hitori.ux.storage.api.Storage;
+import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.Storage;
 
 import java.util.HashMap;
 import java.util.Map;

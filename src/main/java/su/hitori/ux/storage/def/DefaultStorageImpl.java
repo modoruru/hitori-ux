@@ -13,7 +13,7 @@ import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.api.Storage;
+import su.hitori.ux.storage.Storage;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
