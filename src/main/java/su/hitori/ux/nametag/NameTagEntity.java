@@ -115,8 +115,10 @@ final class NameTagEntity {
     }
 
     void remove() {
-        player.removePassenger(textDisplay);
-        textDisplay.remove();
+        if(textDisplay != null) {
+            player.removePassenger(textDisplay);
+            textDisplay.remove();
+        }
     }
 
 }

@@ -1,5 +1,5 @@
 # ux
-This repo contains UX (user experience) module for [hitori](https://github.com/modoruru/hitori-ux) framework
+This repo contains UX (user experience) module for [hitori](https://github.com/modoruru/hitori) framework
 ## Main features
 - Storage for additional user data (+ default local implementation)
 - Custom name tags via TextDisplay's
