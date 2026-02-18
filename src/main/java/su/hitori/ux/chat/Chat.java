@@ -387,19 +387,22 @@ public final class Chat {
         }
 
         uxModule.executorService().execute(() -> {
+            Placeholder[] placeholders = new Placeholder[]{
+                    Placeholder.create("receiver_name", receiver::getName),
+                    Placeholder.create("sender_name", sender::getName),
+                    Placeholder.create("message", () -> message)
+            };
             AsyncDirectMessageEvent event = new AsyncDirectMessageEvent(
                     sender,
                     receiver,
                     message,
                     Text.create(Placeholders.resolve(
                             directMessagesConfig.receiverFormat,
-                            Placeholder.create("sender_name", sender::getName),
-                            Placeholder.create("message", () -> message)
+                            placeholders
                     )),
                     Text.create(Placeholders.resolve(
                             directMessagesConfig.senderFormat,
-                            Placeholder.create("receiver_name", receiver::getName),
-                            Placeholder.create("message", () -> message)
+                            placeholders
                     )),
                     directMessagesConfig.receiveSound.convert()
             );

@@ -245,17 +245,18 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         return supplyAsync(() -> {
             try (PreparedStatement statement = sqlHandle.prepareStatement("SELECT uuid, game_uuid, game_name FROM index")){
                 Set<Identifier> results = new HashSet<>();
-                ResultSet resultSet = statement.executeQuery();
 
-                while (resultSet.next()) {
-                    UUID uuid = UUID.fromString(resultSet.getString("uuid"));
-                    if(uuid.equals(SERVER_DATA_IDENTIFIER.uuid())) continue;
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) {
+                        UUID uuid = UUID.fromString(resultSet.getString("uuid"));
+                        if(uuid.equals(SERVER_DATA_IDENTIFIER.uuid())) continue;
 
-                    results.add(new Identifier(
-                            uuid,
-                            UUID.fromString(resultSet.getString("game_uuid")),
-                            resultSet.getString("game_name")
-                    ));
+                        results.add(new Identifier(
+                                uuid,
+                                UUID.fromString(resultSet.getString("game_uuid")),
+                                resultSet.getString("game_name")
+                        ));
+                    }
                 }
 
                 return results;
