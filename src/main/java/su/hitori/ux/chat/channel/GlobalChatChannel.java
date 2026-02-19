@@ -4,6 +4,7 @@ import net.kyori.adventure.key.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import su.hitori.api.util.Either;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataContainer;
 
@@ -25,8 +26,8 @@ final class GlobalChatChannel implements ChatChannel {
     }
 
     @Override
-    public Set<Player> resolveReceivers(Player sender, DataContainer senderContainer) {
-        return new HashSet<>(Bukkit.getOnlinePlayers());
+    public Either<Set<Player>, String> resolveReceivers(Player sender, DataContainer senderContainer) {
+        return Either.ofFirst(new HashSet<>(Bukkit.getOnlinePlayers()));
     }
 
     @Override

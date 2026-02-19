@@ -5,6 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import su.hitori.api.util.Either;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataContainer;
 
@@ -27,7 +28,7 @@ final class LocalChatChannel implements ChatChannel {
     }
 
     @Override
-    public Set<Player> resolveReceivers(Player sender, DataContainer senderContainer) {
+    public Either<Set<Player>, String> resolveReceivers(Player sender, DataContainer senderContainer) {
         var localChatConfig = UXConfiguration.I.chat.localChat;
 
         // find message receivers
@@ -42,7 +43,7 @@ final class LocalChatChannel implements ChatChannel {
                 }
         );
 
-        return receivers;
+        return Either.ofFirst(receivers);
     }
 
     @Override

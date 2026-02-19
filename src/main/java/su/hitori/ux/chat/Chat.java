@@ -272,7 +272,13 @@ public final class Chat {
         }
         if(senderContainer == null) return;
 
-        Set<Player> receivers = chatChannel.resolveReceivers(sender, senderContainer);
+        var receiversOrError = chatChannel.resolveReceivers(sender, senderContainer);
+        if(receiversOrError.secondPresent()) {
+            sender.sendMessage(Messages.ERROR.create(receiversOrError.second()));
+            return;
+        }
+
+        Set<Player> receivers = receiversOrError.first();
 
         receivers.removeIf(player -> {
             if(player == sender) return false;
