@@ -69,12 +69,13 @@ public final class UXModule extends Module {
 
     @Override
     public void enable(EnableContext context) {
-        new UXConfiguration(defaultConfig()).reload();
+        UXConfiguration config = new UXConfiguration(defaultConfig());
+        config.reload();
 
         executorService = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
 
         // init storage
-        var storageConfig = UXConfiguration.I.storage;
+        var storageConfig = config.storage;
         if(!storageConfig.implementation.equalsIgnoreCase("default")) thirdPartyStorage = true;
         else {
             var implementationConfig = storageConfig.defaultImplementation;
@@ -116,7 +117,7 @@ public final class UXModule extends Module {
                 new StreamListener(streams)
         );
 
-        if(UXConfiguration.I.chat.enabled) {
+        if(config.chat.enabled) {
             if(!context.hasEnabledBefore()) disableVanillaCommands();
             context.listeners().register(new ChatListener(this));
             context.commands().register(
@@ -130,13 +131,15 @@ public final class UXModule extends Module {
             );
         }
 
-        if(UXConfiguration.I.nameTags.enabled) {
+        if(config.nameTags.enabled) {
             context.listeners().register(new NameTagsListener(nameTags));
             nameTags.start();
         }
 
+        if(config.chat.gender.enabled)
+            context.commands().register(new GenderCommand(this));
+
         context.commands().register(
-                new GenderCommand(this),
                 new EventCommand(events),
                 new StreamCommand(this)
         );

@@ -1,5 +1,6 @@
 package su.hitori.ux;
 
+import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.DataContainer;
 
@@ -23,6 +24,8 @@ public final class GenderInfluencedText {
     }
 
     public String determine(DataContainer container) {
+        if(!UXConfiguration.I.chat.gender.enabled) return maleVariant();
+
         return "woman".equalsIgnoreCase(container.get(GENDER_FIELD))
                 ? femaleVariant()
                 : maleVariant();

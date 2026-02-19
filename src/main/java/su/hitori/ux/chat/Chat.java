@@ -184,8 +184,10 @@ public final class Chat {
             ));
         }
 
+        var chatConfig = UXConfiguration.I.chat;
+
         LinkedHashSet<FormatCode> codeBuffer = new LinkedHashSet<>();
-        if(DefaultPermission.CHAT_FORMATTING.hasPermission(sender)) {
+        if(chatConfig.colorFormatting && DefaultPermission.CHAT_FORMATTING.hasPermission(sender)) {
             int index;
             int belowLimit = - 1;
             while ((index = builder.indexOf("&")) != -1 && index > belowLimit) {
@@ -216,7 +218,8 @@ public final class Chat {
             }
         }
 
-        Replacement.fillWithReplacements(chatRegistries.replacementRegistry, sender, builder);
+        if(chatConfig.replacements.enabled)
+            Replacement.fillWithReplacements(chatRegistries.replacementRegistry, sender, builder);
 
         AsyncPreChatMessageEvent event1 = new AsyncPreChatMessageEvent(
                 sender,
@@ -228,13 +231,12 @@ public final class Chat {
 
         input = event1.formattedMessage();
 
-        var chatConfig = UXConfiguration.I.chat;
-
         Set<Player> mentioned = new HashSet<>();
-        if(chatConfig.mentions.enabled) {
+        var mentionsConfig = chatConfig.mentions;
+        if(mentionsConfig.enabled) {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if(player == sender) continue;
-                String name = player.getName();
+                String name = mentionsConfig.requireAtSymbol ? ("@" + player.getName()) : player.getName();
 
                 if(input.contains(name)) {
                     mentioned.add(player);

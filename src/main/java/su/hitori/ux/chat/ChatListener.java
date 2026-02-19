@@ -143,14 +143,15 @@ public final class ChatListener implements Listener {
     }
 
     private static Component replaceVanillaUsername(Component original, Player player) {
-        if(!(original instanceof TranslatableComponent translatable)) return original;
+        var cfg = UXConfiguration.I.chat.replaceVanillaUsername;
+        if(!cfg.enabled || !(original instanceof TranslatableComponent translatable)) return original;
 
         List<Component> arguments = translatable.arguments()
                 .parallelStream()
                 .map(TranslationArgumentLike::asComponent)
                 .collect(Collectors.toList());
         arguments.set(0, Text.create(Placeholders.resolveDynamic(
-                UXConfiguration.I.chat.replaceVanillaUsername.usernameFormat,
+                cfg.usernameFormat,
                 player,
                 Chat.PLAYER_NAME_PLACEHOLDER
         )));

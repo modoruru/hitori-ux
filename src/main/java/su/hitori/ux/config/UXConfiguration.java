@@ -71,6 +71,7 @@ public final class UXConfiguration extends Configuration {
         public Gender gender = new Gender();
         public FirstVisit firstVisit = new FirstVisit();
         public String sharedInventoryFormat = "<hover:show_text:'Click to view %player_name% inventory'><click:run_command:'/sharedinventory %shared_inventory_uuid%'>[%player_name% inventory]";
+        public boolean colorFormatting = true;
 
         public static final class FirstVisit {
             public boolean enabled = true;
@@ -88,6 +89,7 @@ public final class UXConfiguration extends Configuration {
 
         public static final class Mentions {
             public boolean enabled = true;
+            public boolean requireAtSymbol = false;
 
             @Comment(value = {@CommentValue(" Formatting for mention. <player_name> returns mentioned player name.")})
             public String formatting = "<bold>%player_name%</bold>";
@@ -184,11 +186,12 @@ public final class UXConfiguration extends Configuration {
         }
 
         public static final class Replacements {
+            public boolean enabled = true;
             public String allFormat = "<gray>%formatted_replacement%</gray>";
 
             public String ping = "%ping% ms";
             public String location = "Coordinates: %x%; %y%; %z%";
-            public String playtime = "Playtime: %playtime%";
+            public String playtime = "Playtime: %playtime%h";
             public String mobkills = "Mobs kills: %mobkills%";
             public String mineblocks = "Blocks mined: %mineblocks%";
             public String deaths = "Deaths: %deaths%";
@@ -205,6 +208,8 @@ public final class UXConfiguration extends Configuration {
         }
 
         public static final class Gender {
+            @Comment(value = {@CommentValue(" If disabled, server will always use male message variations.")})
+            public boolean enabled = true;
             public String now_man = "You've set the gender to <aqua>male</aqua>.";
             public String already_man = "You've already set the gender to <aqua>male</aqua>!";
             public String now_woman = "You've set the gender to <aqua>female</aqua>.";

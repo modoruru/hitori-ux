@@ -66,7 +66,7 @@ public final class ChatRegistries implements RegistryAccess {
         createReplacement("play_time", "playtime", cfg.playtime, Set.of(
                 DynamicPlaceholder.create(
                         "playtime", player -> String.format(
-                                "%.2fh",
+                                "%.2f",
                                 (player.getStatistic(Statistic.PLAY_ONE_MINUTE) / (20 * 60 * 60d)) // thanks bukkit for naming statistic with minute and counting in ticks
                         )
                 )
