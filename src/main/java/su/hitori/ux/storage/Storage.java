@@ -23,8 +23,10 @@ public interface Storage<Container extends DataContainer> {
 
     CompletableFuture<Set<Identifier>> getAllIdentifiers();
 
+    @Deprecated(forRemoval = true)
     @NotNull CompletableFuture<Identifier> getIdentifierByUUID(@NotNull UUID uuid);
 
+    @Deprecated(forRemoval = true)
     @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName);
 
     Player getPlayerByIdentifier(Identifier identifier);
