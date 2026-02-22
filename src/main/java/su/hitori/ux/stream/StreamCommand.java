@@ -7,6 +7,7 @@ import dev.jorel.commandapi.executors.CommandArguments;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import su.hitori.api.command.URLArgument;
+import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
 import su.hitori.ux.UXModule;
 import su.hitori.ux.config.UXConfiguration;
@@ -59,7 +60,7 @@ public final class StreamCommand extends CommandAPICommand {
     }
 
     private void resolveThenContinue(String playerName, Consumer<Identifier> consumer) {
-        uxModule.storage().getIdentifierByGameName(playerName).thenAccept(consumer);
+        uxModule.storage().getIdentifier(Either.ofSecond(playerName)).thenAccept(consumer);
     }
 
     private void start(Player sender, Identifier identifier, CommandArguments args) {

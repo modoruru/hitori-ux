@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.function.Function;
 
 /**
+ * DynamicPlaceholder return some string based on passed object
  * @param <E> object for resolving placeholders
  */
 public final class DynamicPlaceholder<E> {

@@ -11,8 +11,16 @@ import java.util.concurrent.CompletableFuture;
 
 public interface Storage<Container extends DataContainer> {
 
+    /**
+     * Register fields into the user scheme to later use it in {@link DataContainer}
+     * @param fields fields to register
+     */
     void addFieldsToUserScheme(DataField<?>... fields);
 
+    /**
+     * Register fields into the server scheme to later use it in {@link DataContainer}
+     * @param fields fields to register
+     */
     void addFieldsToServerScheme(DataField<?>... fields);
 
     boolean isInitialized();
@@ -23,9 +31,15 @@ public interface Storage<Container extends DataContainer> {
 
     CompletableFuture<Set<Identifier>> getAllIdentifiers();
 
+    /**
+     * @deprecated use {@link #getIdentifier(Either)}
+     */
     @Deprecated(forRemoval = true)
     @NotNull CompletableFuture<Identifier> getIdentifierByUUID(@NotNull UUID uuid);
 
+    /**
+     * @deprecated use {@link #getIdentifier(Either)}
+     */
     @Deprecated(forRemoval = true)
     @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName);
 

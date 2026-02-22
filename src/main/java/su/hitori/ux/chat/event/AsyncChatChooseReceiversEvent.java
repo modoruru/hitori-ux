@@ -8,6 +8,9 @@ import su.hitori.ux.chat.channel.ChatChannel;
 
 import java.util.Set;
 
+/**
+ * Called when chat resolving receivers for chat message.
+ */
 public class AsyncChatChooseReceiversEvent extends Event {
 
     private static final HandlerList HANDLER_LIST = new HandlerList();
@@ -23,14 +26,23 @@ public class AsyncChatChooseReceiversEvent extends Event {
         this.receivers = receivers;
     }
 
+    /**
+     * Message sender
+     */
     public Player sender() {
         return sender;
     }
 
+    /**
+     * Chat channel that is getting message
+     */
     public ChatChannel chatChannel() {
         return chatChannel;
     }
 
+    /**
+     * Mutable set containing message receivers
+     */
     public Set<Player> receivers() {
         return receivers;
     }

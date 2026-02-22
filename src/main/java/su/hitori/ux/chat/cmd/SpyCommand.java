@@ -24,6 +24,8 @@ public final class SpyCommand extends CommandAPICommand {
 
     private void execute(Player sender, CommandArguments args) {
         uxModule.storage().getUserDataContainer(sender).thenAccept(container -> {
+            if(container == null) return;
+
             boolean enabled = !container.getOrDefault(SPYING_FIELD, false);
             container.set(SPYING_FIELD, enabled);
 

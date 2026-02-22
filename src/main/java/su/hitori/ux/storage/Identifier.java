@@ -5,6 +5,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Identifier used in storage to identify players.
+ * Stores system uuid, in-game unique id and in-game name.
+ */
 public final class Identifier {
 
     private final UUID uuid, gameUuid;

@@ -20,16 +20,10 @@ final class SQLHandle {
         }
     }
 
-    void open(@NotNull String url, @NotNull String user, @NotNull String password, String initialQuery) throws SQLException {
+    void open(@NotNull String url, @NotNull String user, @NotNull String password) throws SQLException {
         if(url.startsWith("jdbc:h2")) initH2Driver();
 
         connection = DriverManager.getConnection(url + ";DB_CLOSE_ON_EXIT=FALSE", user, password);
-
-        if(initialQuery == null) return;
-
-        try (Statement statement = createStatement()) {
-            statement.execute(initialQuery);
-        }
     }
 
     void close() throws SQLException {

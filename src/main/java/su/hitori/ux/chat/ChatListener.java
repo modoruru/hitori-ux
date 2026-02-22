@@ -75,19 +75,17 @@ public final class ChatListener implements Listener {
     }
 
     private void callOnlineMessageEvent(Player player, boolean nowOnline) {
-        uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
-            uxModule.executorService().execute(() -> {
-                var config = UXConfiguration.I.chat.joinQuit;
-                AsyncPlayerOnlineMessageEvent event = new AsyncPlayerOnlineMessageEvent(player, container, Text.create(Placeholders.resolveDynamic(
-                        (nowOnline ? config.join : config.quit).convert().determine(container),
-                        player,
-                        Chat.PLAYER_NAME_PLACEHOLDER
-                )), nowOnline);
-                if(!event.callEvent()) return;
+        uxModule.storage().getUserDataContainer(player).thenAccept(container -> uxModule.executorService().execute(() -> {
+            var config = UXConfiguration.I.chat.joinQuit;
+            AsyncPlayerOnlineMessageEvent event = new AsyncPlayerOnlineMessageEvent(player, container, Text.create(Placeholders.resolveDynamic(
+                    (nowOnline ? config.join : config.quit).convert().determine(container),
+                    player,
+                    Chat.PLAYER_NAME_PLACEHOLDER
+            )), nowOnline);
+            if(!event.callEvent()) return;
 
-                Bukkit.broadcast(event.message());
-            });
-        });
+            Bukkit.broadcast(event.message());
+        }));
     }
 
     @EventHandler

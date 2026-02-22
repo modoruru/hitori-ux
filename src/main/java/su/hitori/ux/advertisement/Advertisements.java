@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Advertising notifications in the action-bar for the players
+ */
 public final class Advertisements {
 
     private Task sendTask;

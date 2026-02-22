@@ -31,8 +31,6 @@ import java.util.stream.Collectors;
 
 public final class DefaultStorageImpl implements Storage<DefaultDataContainerImpl> {
 
-    public boolean debug = false;
-
     private static final long SAVE_PERIOD = 60 * 20L; // save every 3 seconds
 
     private static final Identifier SERVER_DATA_IDENTIFIER = new Identifier(
@@ -129,7 +127,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
 
         CompletableFuture.supplyAsync(() -> {
             try {
-                sqlHandle.open(url, user, password, null);
+                sqlHandle.open(url, user, password);
 
                 try (Statement index = sqlHandle.createStatement(); Statement users = sqlHandle.createStatement()) {
                     index.execute("CREATE TABLE IF NOT EXISTS `index` (uuid VARCHAR(255) PRIMARY KEY, game_uuid VARCHAR(255), game_name VARCHAR(255))");
@@ -155,7 +153,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                     for (DefaultDataContainerImpl container : dataCache.values()) {
                         if(container.temporary && System.currentTimeMillis() > (container.lastAccess + DefaultDataContainerImpl.RETAINING_TIME_SECONDS * 1000L)) {
                             toClose.add(container.identifier());
-                            LOGGER.warning(container.identifier() + " is temp and not been accessed in last 15 seconds - closing it");
                         }
                     }
                     toClose.forEach(this::quit);
@@ -224,8 +221,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                     }
 
                     Identifier identifier = container.identifier();
-                    if(debug)
-                        LOGGER.warning("Cached identifier " + identifier);
 
                     identifierCache.put(identifier.gameName().toLowerCase(), identifier);
 
@@ -272,9 +267,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     }
 
     public @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName) {
-        Identifier identifier = identifierCache.get(gameName.toLowerCase());
-        if(identifier != null) return CompletableFuture.completedFuture(identifier);
-
         return getIdentifier(Either.ofSecond(gameName));
     }
 
@@ -310,11 +302,8 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     }
 
     public CompletableFuture<@Nullable DefaultDataContainerImpl> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache) {
-        if(identifier == null) {
-            if(debug)
-                LOGGER.warning("returned null container because id was null");
+        if(identifier == null)
             return CompletableFuture.completedFuture(null);
-        }
 
         var cachedData = dataCache.get(identifier);
         if(cachedData != null) {
@@ -333,8 +322,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
 
             future.whenComplete((either, _) -> {
                 requestCache.remove(key, future);
-                if(debug)
-                    either.secondOptional().ifPresent(ex -> LOGGER.warning("caught an exception while querying " + identifier + ": " + ex.getMessage()));
             });
 
             return future.thenApply(either -> either.firstOptional().orElse(null));
@@ -387,8 +374,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
 
             statement.setString(1, identifier.uuid().toString());
             ResultSet set = statement.executeQuery();
-            if(debug)
-                LOGGER.warning("QUERY DATA CONTAINER: " + identifier);
 
             JSONObject json = null;
             long bytesSize = 0;
@@ -424,8 +409,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     }
 
     private void insertIdentifier(Identifier identifier) throws RuntimeException {
-        if(debug)
-            LOGGER.warning("INSERT IDENTIFIER: " + identifier);
         try (PreparedStatement statement = sqlHandle.prepareStatement("INSERT INTO `index` (uuid, game_uuid, game_name) VALUES (?, ?, ?)")) {
             statement.setString(1, identifier.uuid().toString());
             statement.setString(2, identifier.gameUuid().toString());
@@ -435,8 +418,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        if(debug)
-            LOGGER.warning("INSERT IDENTIFIER END: " + identifier);
     }
 
     void save(DefaultDataContainerImpl container, boolean async) {
@@ -452,7 +433,6 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         boolean fresh = container.fresh;
         if(fresh) container.fresh = false; // reset fresh tag on container
 
-        // save json
         try (PreparedStatement statement = sqlHandle.prepareStatement(
                 fresh
                         ? "INSERT INTO users (uuid, body) VALUES (?, ?)"
@@ -463,11 +443,8 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
             statement.execute();
         }
         catch (SQLException e) {
-            LOGGER.warning("PIZDEC: " + e.getMessage());
-            return;
+            LOGGER.warning("Internal problem of saving DataContainer: " + e.getMessage());
         }
-        if(debug)
-            LOGGER.warning("UPDATE DATA CONTAINER FINISHED: " + identifier);
     }
 
     void saveAll() {
@@ -476,14 +453,10 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
 
     void quit(Player player) {
         Identifier identifier = identifierCache.remove(player.getName().toLowerCase());
-        if(debug)
-            LOGGER.warning(player.getName() + " is quit, closing container. identifier null? " + (identifier == null));
-        if(identifier == null) return; // is it right? idk test later
+        if(identifier == null) return;
 
         DefaultDataContainerImpl container = dataCache.get(identifier);
         if(container == null) return;
-        if(debug)
-            LOGGER.warning(identifier + " turned temprorary.");
         container.temporary = true;
         container.lastAccess = System.currentTimeMillis();
     }

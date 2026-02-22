@@ -55,6 +55,7 @@ public final class ChatRegistries implements RegistryAccess {
         replacementRegistry.register(replacement.key(), replacement);
     }
 
+    @SuppressWarnings("SpellCheckingInspection")
     private void bootstrapReplacements() {
         var cfg = UXConfiguration.I.chat.replacements;
         createReplacement("ping", "ping", cfg.ping, Set.of(DynamicPlaceholder.create("ping", Player::getPing)));
@@ -81,9 +82,7 @@ public final class ChatRegistries implements RegistryAccess {
                     org.bukkit.Registry.BLOCK.keyStream()
                             .map(org.bukkit.Registry.MATERIAL::get)
                             .filter(Objects::nonNull)
-                            .forEach(material -> {
-                                allCount.set(allCount.get() + player.getStatistic(Statistic.MINE_BLOCK, material));
-                            });
+                            .forEach(material -> allCount.set(allCount.get() + player.getStatistic(Statistic.MINE_BLOCK, material)));
 
                     return allCount.get();
                 }

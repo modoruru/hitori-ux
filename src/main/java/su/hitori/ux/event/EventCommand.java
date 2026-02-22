@@ -40,9 +40,9 @@ public final class EventCommand extends CommandAPICommand {
                         .withArguments(new UUIDArgument("uuid"))
                         .executes(this::end), // ends event,
 
-                new CommandAPICommand("uuids")
+                new CommandAPICommand("list")
                         .withPermission("*")
-                        .executes(this::uuids),
+                        .executes(this::list),
 
                 new CommandAPICommand("view")
                         .withArguments(new UUIDArgument("uuid"))
@@ -78,7 +78,7 @@ public final class EventCommand extends CommandAPICommand {
         }
 
         events.uxModule.storage().getUserDataContainer(sender).thenAccept(container -> {
-            if(events.isHidden(container, event.uuid())) return;
+            if(container == null || events.isHidden(container, event.uuid())) return;
 
             List<UUID> hidden = container.get(Events.HIDDEN_EVENTS_FIELD);
 
@@ -103,7 +103,7 @@ public final class EventCommand extends CommandAPICommand {
         events.endEvent(event);
     }
 
-    private void uuids(CommandSender sender, CommandArguments args) {
+    private void list(CommandSender sender, CommandArguments args) {
         var events = this.events.activeEvents();
         if(events.isEmpty()) {
             sender.sendMessage(Messages.ERROR.create("There's no active events!"));

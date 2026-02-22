@@ -25,6 +25,13 @@ dependencies {
     compileOnly("com.github.modoruru:hitori:${properties.getOrDefault("hitori_version", "")}")
 }
 
+tasks {
+    val sourcesJar by registering(Jar::class) {
+        archiveClassifier.set("sources")
+        from(sourceSets.main.get().allSource)
+    }
+}
+
 publishing {
     publications {
         create<MavenPublication>("maven") {
@@ -32,6 +39,8 @@ publishing {
             version = rootProject.version.toString()
 
             artifact(tasks.named("jar"))
+
+            artifact(tasks.named("sourcesJar"))
         }
     }
 }

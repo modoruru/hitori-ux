@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
+import su.hitori.api.util.Either;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.Sound;
@@ -57,7 +58,7 @@ public final class Streams {
                 continue;
             }
 
-            uxModule.storage().getIdentifierByUUID(UUID.fromString(key)).thenAccept(identifier ->
+            uxModule.storage().getIdentifier(Either.ofFirst(UUID.fromString(key))).thenAccept(identifier ->
                 ongoingStreams.put(identifier, new StreamInfo(identifier, url))
             );
         }

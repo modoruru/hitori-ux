@@ -14,7 +14,7 @@ public final class Placeholders {
         int index;
         while ((index = original.indexOf(substring, lastIndex)) != -1) {
             result.append(original, lastIndex, index);
-            result.append(String.valueOf(supplier.get()));
+            result.append(supplier.get());
             lastIndex = index + substringLength;
         }
 

@@ -8,6 +8,7 @@ import su.hitori.ux.notification.NotificationType;
 import java.nio.file.Path;
 import java.util.List;
 
+@SuppressWarnings("CanBeFinal")
 public final class UXConfiguration extends Configuration {
 
     public static UXConfiguration I;
@@ -185,6 +186,7 @@ public final class UXConfiguration extends Configuration {
             }
         }
 
+        @SuppressWarnings("SpellCheckingInspection")
         public static final class Replacements {
             public boolean enabled = true;
             public String allFormat = "<gray>%formatted_replacement%</gray>";

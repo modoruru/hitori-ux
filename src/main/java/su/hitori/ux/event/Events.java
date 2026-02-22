@@ -120,13 +120,11 @@ public final class Events {
             long diff = now - event.utcStartTime();
             if(diff <= 0 || diff >= 1000) continue;
 
-            Bukkit.getOnlinePlayers().forEach(player -> {
-                executorService.execute(() -> uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
-                    if(container == null || isHidden(container, event.uuid())) return;
+            Bukkit.getOnlinePlayers().forEach(player -> executorService.execute(() -> uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
+                if(container == null || isHidden(container, event.uuid())) return;
 
-                    showReminder(player, event);
-                }));
-            });
+                showReminder(player, event);
+            })));
         }
     }
 
@@ -210,6 +208,8 @@ public final class Events {
 
     public CompletableFuture<List<Event>> getNonHiddenActiveEvents(Player player) {
         return uxModule.storage().getUserDataContainer(player).thenApply(container -> {
+            if(container == null) return activeEvents();
+
             List<UUID> hidden = container.get(HIDDEN_EVENTS_FIELD);
             if(hidden == null) return activeEvents();
 

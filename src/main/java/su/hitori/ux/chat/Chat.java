@@ -7,6 +7,7 @@ import org.json.JSONArray;
 import su.hitori.api.Pair;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.registry.RegistryAccess;
+import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
 import su.hitori.api.util.Text;
 import su.hitori.ux.Sound;
@@ -284,7 +285,7 @@ public final class Chat {
             if(player == sender) return false;
 
             try {
-                Identifier receiverIdentifier = storage.getIdentifierByGameName(player.getName()).get();
+                Identifier receiverIdentifier = storage.getIdentifier(Either.ofSecond(player.getName())).get();
                 return uxModule.chat().isIgnoring(receiverIdentifier, senderContainer.identifier(), IgnoringType.CHAT);
             }
             catch (Throwable ex) {
@@ -462,7 +463,7 @@ public final class Chat {
         Set<Identifier> identifiers = new HashSet<>();
         for (UUID uuid : getIgnoringSet(identifier, ignoringType)) {
             try {
-                identifiers.add(uxModule.storage().getIdentifierByUUID(uuid).get());
+                identifiers.add(uxModule.storage().getIdentifier(Either.ofFirst(uuid)).get());
             }
             catch (Throwable _) {
             }

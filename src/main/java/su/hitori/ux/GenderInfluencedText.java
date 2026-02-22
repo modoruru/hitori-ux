@@ -4,27 +4,12 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.DataContainer;
 
-public final class GenderInfluencedText {
+public record GenderInfluencedText(String maleVariant, String femaleVariant) {
 
     public static final DataField<String> GENDER_FIELD = DataField.createString("gender");
 
-    private final String maleVariant, femaleVariant;
-
-    public GenderInfluencedText(String maleVariant, String femaleVariant) {
-        this.maleVariant = maleVariant;
-        this.femaleVariant = femaleVariant;
-    }
-
-    public String maleVariant() {
-        return maleVariant;
-    }
-
-    public String femaleVariant() {
-        return femaleVariant;
-    }
-
     public String determine(DataContainer container) {
-        if(!UXConfiguration.I.chat.gender.enabled) return maleVariant();
+        if (!UXConfiguration.I.chat.gender.enabled) return maleVariant();
 
         return "woman".equalsIgnoreCase(container.get(GENDER_FIELD))
                 ? femaleVariant()

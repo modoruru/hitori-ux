@@ -96,12 +96,15 @@ public final class Tab {
     public void stop() {
         if(task == null) return;
 
+        Objective objective = scoreboard.getObjective(OBJECTIVE_NAME);
+        assert objective != null;
+
         for (TabEntry value : tabEntries.values()) {
             clearFakeTeams(value);
 
             if(value.initialized) {
                 asNMS(value.player).connection.send(new ClientboundSetObjectivePacket(
-                        scoreboard.getObjective(OBJECTIVE_NAME),
+                        objective,
                         ClientboundSetObjectivePacket.METHOD_REMOVE
                 ));
             }

@@ -10,6 +10,7 @@ import dev.jorel.commandapi.executors.CommandArguments;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import su.hitori.api.Pair;
+import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
@@ -61,7 +62,7 @@ public final class IgnoreCommand extends CommandAPICommand {
 
         Storage<DataContainer> storage = uxModule.storage();
         CompletableFuture<DataContainer> senderFuture = storage.getUserDataContainer(sender);
-        storage.getIdentifierByGameName(playerName)
+        storage.getIdentifier(Either.ofSecond(playerName))
                 .thenCompose(identifier -> storage.getUserDataContainer(identifier, true, false))
                 .thenCombine(senderFuture, (first, second) -> Pair.of(
                         Optional.ofNullable(first),
@@ -136,7 +137,7 @@ public final class IgnoreCommand extends CommandAPICommand {
     private void list0(Player sender) {
         Identifier senderId;
         try {
-            senderId = uxModule.storage().getIdentifierByGameName(sender.getName()).get();
+            senderId = uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).get();
         }
         catch (Throwable ex) {
             return;
@@ -202,7 +203,7 @@ public final class IgnoreCommand extends CommandAPICommand {
 
                 Identifier identifier;
                 try {
-                    identifier = uxModule.storage().getIdentifierByGameName(sender.getName()).get();
+                    identifier = uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).get();
                 }
                 catch (Throwable ex) {
                     return Set.of();

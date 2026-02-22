@@ -1,4 +1,6 @@
 # ux
+[Русская версия](./README_ru.md)
+
 This repo contains UX (user experience) module for [hitori](https://github.com/modoruru/hitori) framework
 ## Main features
 - Storage for additional user data (+ default local implementation)
@@ -7,7 +9,7 @@ This repo contains UX (user experience) module for [hitori](https://github.com/m
     - Global & local chat (+ api to add another channels)
     - Direct messages
     - Player ignoring
-    - Mentions, URL processing, Style formatting and Replacements (placeholders for players to use in chat, e. g. deaths, playtime, ping)
+    - Mentions, URL processing, Style formatting and Replacements (placeholders for players to use in chat, e.g. deaths, playtime, ping)
 - Tab processing
     - Header, footer
     - Player tab name

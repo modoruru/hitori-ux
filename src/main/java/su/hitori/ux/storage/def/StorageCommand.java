@@ -107,6 +107,7 @@ public final class StorageCommand extends CommandAPICommand {
         });
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private void movePlayerData(CommandSender sender, Identifier old, UUID newGameUuid, String newGameName, boolean moveGameData) throws ExecutionException, InterruptedException {
         Identifier id0 = storage.getIdentifierByGameName(newGameName).get(), id1 = null;
 

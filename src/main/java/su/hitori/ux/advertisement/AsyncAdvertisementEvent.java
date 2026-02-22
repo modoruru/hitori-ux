@@ -7,6 +7,9 @@ import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Called when player receives an advertising notification
+ */
 public class AsyncAdvertisementEvent extends Event implements Cancellable {
 
     private static final HandlerList HANDLER_LIST = new HandlerList();
@@ -16,16 +19,22 @@ public class AsyncAdvertisementEvent extends Event implements Cancellable {
 
     private boolean cancelled;
 
-    public AsyncAdvertisementEvent(Player player, Component advertisement) {
+    protected AsyncAdvertisementEvent(Player player, Component advertisement) {
         super(true);
         this.player = player;
         this.advertisement = advertisement;
     }
 
+    /**
+     * Receiver of advertisement
+     */
     public Player player() {
         return player;
     }
 
+    /**
+     * Advertisement message
+     */
     public Component advertisement() {
         return advertisement;
     }
