@@ -36,7 +36,9 @@ public final class GenderCommand extends CommandAPICommand {
         var config = UXConfiguration.I.chat.gender;
 
         uxModule.storage().getUserDataContainer(player).thenAccept(container -> {
-            if(container == null || "man".equals(container.getOrDefault(GenderInfluencedText.GENDER_FIELD, "man")) == man) {
+            if(container == null) return;
+
+            if("man".equals(container.getOrDefault(GenderInfluencedText.GENDER_FIELD, "man")) == man) {
                 player.sendMessage(Messages.ERROR.create(man ? config.already_man : config.already_woman));
                 return;
             }
