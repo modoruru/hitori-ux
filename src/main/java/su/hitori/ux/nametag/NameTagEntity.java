@@ -112,6 +112,7 @@ final class NameTagEntity {
                 player,
                 PLAYER_NAME_PLACEHOLDER
         )));
+        textDisplay.setSeeThrough(!player.isSneaking());
     }
 
     void remove() {
