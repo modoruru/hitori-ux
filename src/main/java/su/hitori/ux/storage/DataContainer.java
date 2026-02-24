@@ -1,5 +1,7 @@
 package su.hitori.ux.storage;
 
+import org.bukkit.entity.Player;
+
 import javax.annotation.Nullable;
 
 /**

@@ -21,6 +21,7 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
+import su.hitori.ux.storage.DataContainer;
 
 import java.util.*;
 
@@ -38,7 +39,7 @@ public final class Tab {
     private final Scoreboard scoreboard;
 
     private final Map<Player, TabEntry> tabEntries;
-    private final Pipeline<Comparator<Player>> sorters;
+    private final Pipeline<Comparator<Pair<Player, DataContainer>>> sorters;
     private final UXConfiguration.Tab configuration;
 
     private Task task;
@@ -51,10 +52,10 @@ public final class Tab {
         this.sorters = new Pipeline<>();
         this.configuration = UXConfiguration.I.tab;
 
-        sorters.addLast(Key.key("ux", "is_op"), (first, second) -> -Boolean.compare(first.isOp(), second.isOp()));
+        sorters.addLast(Key.key("ux", "is_op"), (first, second) -> -Boolean.compare(first.first().isOp(), second.first().isOp()));
         sorters.addLast(Key.key("ux", "alphabetical"), (first, second) -> {
-            String name1 = first.getName().toLowerCase();
-            String name2 = second.getName().toLowerCase();
+            String name1 = first.first().getName().toLowerCase();
+            String name2 = second.first().getName().toLowerCase();
 
             int length1 = name1.length(), length2 = name2.length();
             for (int i = 0; i < length1; i++) {
@@ -76,7 +77,7 @@ public final class Tab {
         );
     }
 
-    public Pipeline<Comparator<Player>> sortingPipeline() {
+    public Pipeline<Comparator<Pair<Player, DataContainer>>> sortingPipeline() {
         return sorters;
     }
 
@@ -253,7 +254,9 @@ public final class Tab {
 
     public void addPlayer(Player player) {
         if(tabEntries.containsKey(player)) return;
-        tabEntries.put(player, new TabEntry(player, sorters, player::canSee));
+        uxModule.storage().getUserDataContainer(player).thenAccept(container ->
+                tabEntries.put(player, new TabEntry(player, container, sorters, player::canSee))
+        );
     }
 
     public void removePlayer(Player player) {
