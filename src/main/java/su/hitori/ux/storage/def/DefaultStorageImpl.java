@@ -75,11 +75,24 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         this.serverDataScheme = new HashSet<>();
     }
 
-    @SuppressWarnings({"UseBulkOperation", "ManualArrayToCollectionCopy"})
     public void addFieldsToUserScheme(DataField<?>... fields) {
+        addFields(true, fields);
+    }
+
+    public void addFieldsToServerScheme(DataField<?>... fields) {
+        addFields(false, fields);
+    }
+
+    /**
+     * @param userScheme true if userScheme, false if serverScheme
+     */
+    @SuppressWarnings({"UseBulkOperation", "ManualArrayToCollectionCopy"})
+    private void addFields(boolean userScheme, DataField<?>... fields) {
+        Set<DataField<?>> scheme = userScheme ? userDataScheme : serverDataScheme;
+
         if(!isInitialized()) {
             for (DataField<?> field : fields) {
-                userDataScheme.add(field);
+                scheme.add(field);
             }
             return;
         }
@@ -91,29 +104,24 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         // well reinitialize this fields
 
         Set<DataField<?>> fieldsSet = new HashSet<>(Arrays.asList(fields));
-        Set<String> fieldsNames = fieldsSet.parallelStream().map(DataField::name).collect(Collectors.toSet());
+        Set<String> fieldsNames = fieldsSet.parallelStream()
+                .map(DataField::name)
+                .collect(Collectors.toSet());
 
         // save their current state
         Map<Identifier, JSONObject> json = new HashMap<>();
         for (DefaultDataContainerImpl value : dataCache.values()) {
+            if(userScheme == value.identifier().equals(SERVER_DATA_IDENTIFIER)) continue;
             json.put(value.identifier(), value.encode());
         }
 
         // change scheme - set of fields are always synced with DataContainer
-        userDataScheme.removeIf(field -> fieldsNames.contains(field.name()));
-        userDataScheme.addAll(fieldsSet);
+        scheme.removeIf(field -> fieldsNames.contains(field.name()));
+        scheme.addAll(fieldsSet);
 
         // reinitialize them - all objects will get new instances with probably new classes
-        for (DefaultDataContainerImpl value : dataCache.values()) {
-            value.initialize(json.get(value.identifier()));
-        }
-    }
-
-    @SuppressWarnings({"UseBulkOperation", "ManualArrayToCollectionCopy"})
-    public void addFieldsToServerScheme(DataField<?>... fields) {
-        if(isInitialized()) return;
-        for (DataField<?> field : fields) {
-            serverDataScheme.add(field);
+        for (Map.Entry<Identifier, JSONObject> entry : json.entrySet()) {
+            dataCache.get(entry.getKey()).initialize(entry.getValue());
         }
     }
 
@@ -212,7 +220,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
      */
     void syncPlayer(Player player, boolean callEvent) {
         long start = System.currentTimeMillis();
-        getIdentifierByGameName(player.getName())
+        getIdentifier(Either.ofSecond(player.getName()))
                 .thenCompose(identifier -> getUserDataContainer(identifier, true, true))
                 .thenAccept(container -> {
                     if(container == null) {
@@ -232,7 +240,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                     )));
 
                     if(callEvent)
-                        new AsyncPlayerSynchronizationEvent(player, container.identifier()).callEvent();
+                        new AsyncPlayerSynchronizationEvent(player, container).callEvent();
                 });
     }
 
@@ -262,21 +270,13 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         });
     }
 
-    public @NotNull CompletableFuture<Identifier> getIdentifierByUUID(@NotNull UUID uuid) {
-        return getIdentifier(Either.ofFirst(uuid));
-    }
-
-    public @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName) {
-        return getIdentifier(Either.ofSecond(gameName));
-    }
-
     @Override
     public Player getPlayerByIdentifier(Identifier identifier) {
         return Bukkit.getPlayer(identifier.gameName());
     }
 
     void createIdentifierIfAbsent(@NotNull UUID gameUuid, @NotNull String gameName) {
-        getIdentifierByGameName(gameName).thenAccept(resolved -> {
+        getIdentifier(Either.ofSecond(gameName)).thenAccept(resolved -> {
             if (resolved != null) return;
 
             Identifier identifier = new Identifier(
@@ -298,7 +298,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     }
 
     public CompletableFuture<@Nullable DefaultDataContainerImpl> getUserDataContainer(Player player) {
-        return getIdentifierByGameName(player.getName()).thenCompose(identifier -> getUserDataContainer(identifier, true, false));
+        return getIdentifier(Either.ofSecond(player.getName())).thenCompose(identifier -> getUserDataContainer(identifier, true, false));
     }
 
     public CompletableFuture<@Nullable DefaultDataContainerImpl> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache) {

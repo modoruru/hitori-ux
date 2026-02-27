@@ -1,7 +1,6 @@
 package su.hitori.ux.storage;
 
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import su.hitori.api.util.Either;
 
@@ -31,24 +30,12 @@ public interface Storage<Container extends DataContainer> {
 
     CompletableFuture<Set<Identifier>> getAllIdentifiers();
 
-    /**
-     * @deprecated use {@link #getIdentifier(Either)}
-     */
-    @Deprecated(forRemoval = true)
-    @NotNull CompletableFuture<Identifier> getIdentifierByUUID(@NotNull UUID uuid);
-
-    /**
-     * @deprecated use {@link #getIdentifier(Either)}
-     */
-    @Deprecated(forRemoval = true)
-    @NotNull CompletableFuture<Identifier> getIdentifierByGameName(@NotNull String gameName);
-
     Player getPlayerByIdentifier(Identifier identifier);
 
     CompletableFuture<Container> getServerDataContainer();
 
     default CompletableFuture<@Nullable Container> getUserDataContainer(Player player) {
-        return getIdentifierByGameName(player.getName()).thenCompose(identifier -> getUserDataContainer(identifier, true, false));
+        return getIdentifier(Either.ofSecond(player.getName())).thenCompose(identifier -> getUserDataContainer(identifier, true, false));
     }
 
     CompletableFuture<@Nullable Container> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache);

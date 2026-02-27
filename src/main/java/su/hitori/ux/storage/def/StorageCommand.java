@@ -8,6 +8,7 @@ import dev.jorel.commandapi.executors.CommandArguments;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.json.JSONObject;
+import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
 import su.hitori.api.util.Task;
 import su.hitori.ux.config.UXConfiguration;
@@ -50,7 +51,7 @@ public final class StorageCommand extends CommandAPICommand {
         String name = (String) args.get("name");
         assert name != null;
 
-        storage.getIdentifierByGameName(name).thenCompose(identifier -> storage.getUserDataContainer(identifier, true, false)).thenAccept(container -> {
+        storage.getIdentifier(Either.ofSecond(name)).thenCompose(identifier -> storage.getUserDataContainer(identifier, true, false)).thenAccept(container -> {
             if(container == null) {
                 sender.sendMessage(Messages.ERROR.create(Placeholders.resolve(
                         UXConfiguration.I.chat.noSuchPlayer,
@@ -91,7 +92,7 @@ public final class StorageCommand extends CommandAPICommand {
         boolean moveGameData = (boolean) args.getOrDefault("move_game_data", true);
         assert oldName != null && newUuid != null && newName != null;
 
-        storage.getIdentifierByGameName(oldName).thenAccept(identifier -> {
+        storage.getIdentifier(Either.ofSecond(oldName)).thenAccept(identifier -> {
             if(identifier == null) {
                 sender.sendMessage(Messages.ERROR.create(UXConfiguration.I.chat.noSuchPlayer));
                 return;
@@ -109,9 +110,9 @@ public final class StorageCommand extends CommandAPICommand {
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private void movePlayerData(CommandSender sender, Identifier old, UUID newGameUuid, String newGameName, boolean moveGameData) throws ExecutionException, InterruptedException {
-        Identifier id0 = storage.getIdentifierByGameName(newGameName).get(), id1 = null;
+        Identifier id0 = storage.getIdentifier(Either.ofSecond(newGameName)).get(), id1 = null;
 
-        if(id0 != null || (id1 = storage.getIdentifierByGameName(newGameName).get()) != null) {
+        if(id0 != null || (id1 = storage.getIdentifier(Either.ofSecond(newGameName)).get()) != null) {
             boolean gameUuidConnected = id0 != null;
             sender.sendMessage(Messages.ERROR.create(String.format(
                     "Can't move player data with %s %s, it's already connected to %s",

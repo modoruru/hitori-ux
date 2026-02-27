@@ -4,27 +4,27 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
-import su.hitori.ux.storage.Identifier;
+import su.hitori.ux.storage.DataContainer;
 
 public class AsyncPlayerSynchronizationEvent extends Event {
 
     private static final HandlerList HANDLER_LIST = new HandlerList();
 
     private final Player player;
-    private final Identifier identifier;
+    private final DataContainer container;
 
-    public AsyncPlayerSynchronizationEvent(Player player, Identifier identifier) {
+    public AsyncPlayerSynchronizationEvent(Player player, DataContainer container) {
         super(true);
         this.player = player;
-        this.identifier = identifier;
+        this.container = container;
     }
 
     public Player player() {
         return player;
     }
 
-    public Identifier identifier() {
-        return identifier;
+    public DataContainer container() {
+        return container;
     }
 
     @Override
