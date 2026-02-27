@@ -20,8 +20,8 @@ import su.hitori.ux.chat.event.AsyncFirstVisitMessageEvent;
 import su.hitori.ux.chat.event.AsyncPlayerOnlineMessageEvent;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholders;
-import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -95,25 +95,24 @@ public final class ChatListener implements Listener {
         var firstVisitConfig = UXConfiguration.I.chat.firstVisit;
         if(!firstVisitConfig.enabled) return;
 
-        uxModule.storage().getUserDataContainer(event.identifier(), true, false).thenAccept(container -> {
-            if(container == null) return;
+        DataContainer container = event.container();
+        if(container == null) return;
 
-            if(container.getOrDefault(Chat.SEEN_FIRST_VISIT_MESSAGE_FIELD, false)) return;
+        if(container.getOrDefault(Chat.SEEN_FIRST_VISIT_MESSAGE_FIELD, false)) return;
 
-            int playedSeconds = (int) (player.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20d);
-            if(playedSeconds > firstVisitConfig.secondsToSpend) {
-                showFirstVisit(player, container);
-                return;
-            }
+        int playedSeconds = (int) (player.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20d);
+        if(playedSeconds > firstVisitConfig.secondsToSpend) {
+            showFirstVisit(player, container);
+            return;
+        }
 
-            showFirstVisitTasks.put(
-                    player,
-                    Task.runGlobally(
-                            () -> showFirstVisit(player, container),
-                            (firstVisitConfig.secondsToSpend - playedSeconds) * 20L
-                    )
-            );
-        });
+        showFirstVisitTasks.put(
+                player,
+                Task.runGlobally(
+                        () -> showFirstVisit(player, container),
+                        (firstVisitConfig.secondsToSpend - playedSeconds) * 20L
+                )
+        );
     }
 
     private void showFirstVisit(Player player, DataContainer container) {

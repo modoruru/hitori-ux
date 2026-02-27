@@ -22,7 +22,7 @@ public final class StreamListener implements Listener {
     private void onAsyncPlayerSynchronization(AsyncPlayerSynchronizationEvent event) {
         var ongoingStreams = streams.getOngoingStreams();
         if(ongoingStreams.isEmpty()) return;
-        else if (ongoingStreams.size() == 1 && event.identifier().equals(ongoingStreams.keySet().iterator().next())) return;
+        else if (ongoingStreams.size() == 1 && event.container().identifier().equals(ongoingStreams.keySet().iterator().next())) return;
 
         var config = UXConfiguration.I.streams.ongoingStreams;
         var iterator = ongoingStreams.values().iterator();
