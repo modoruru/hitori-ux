@@ -1,5 +1,5 @@
 # ux
-[English version](./README.md)
+[English version](./README.md)| [Контрибьютинг](https://github.com/modoruru/.github/blob/main/CONTRIBUTING_ru.md)
 
 Этот репозиторий содержит UX (user experience, пользовательский опыт) модуль для [hitori](https://github.com/modoruru/hitori) фреймворка. 
 ## Основные особенности
