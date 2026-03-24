@@ -20,6 +20,7 @@ public final class NameTags {
     private final Map<Player, NameTagEntity> tags;
 
     private Task task;
+    private SkinsRestorerHook skinsRestorerHook;
     private boolean teamDirty;
 
     public NameTags(AtomicReference<ModuleDescriptor> resourcePackModuleReference) {
@@ -57,6 +58,10 @@ public final class NameTags {
         for (Player player : Bukkit.getOnlinePlayers()) {
             track(player);
         }
+
+        if(Bukkit.getPluginManager().getPlugin("SkinsRestorer") == null) return;
+        skinsRestorerHook = new SkinsRestorerHook();
+        skinsRestorerHook.register(this);
     }
 
     public void stop() {
@@ -68,6 +73,8 @@ public final class NameTags {
             nameTagEntity.remove();
         }
         tags.clear();
+
+        if(skinsRestorerHook != null) skinsRestorerHook.unregister();
     }
     
     void track(Player player) {
