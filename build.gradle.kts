@@ -40,6 +40,12 @@ tasks {
         archiveClassifier.set("sources")
         from(sourceSets.main.get().allSource)
     }
+
+    processResources {
+        filesMatching("hitori.properties") {
+            expand("version" to rootProject.version)
+        }
+    }
 }
 
 publishing {
