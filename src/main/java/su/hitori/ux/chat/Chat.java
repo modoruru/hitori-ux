@@ -25,9 +25,9 @@ import su.hitori.ux.permission.DefaultPermission;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
+import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
@@ -159,8 +159,16 @@ public final class Chat {
 
         if(chatChannel == null) chatChannel = chatRegistries.localChatChannel;
         else {
-            builder.deleteCharAt(0);
+            do {
+                builder.deleteCharAt(0);
+            }
+            while (builder.charAt(0) == ' ');
+
             if(builder.isEmpty()) return;
+        }
+
+        while (builder.charAt(0) == '\\') {
+            builder.deleteCharAt(0);
         }
 
         // URL Processing
@@ -395,16 +403,24 @@ public final class Chat {
             return;
         }
 
+        // todo: message processing logic from main chat
+        StringBuilder builder = new StringBuilder(message);
+        while (builder.charAt(0) == '\\') {
+            builder.deleteCharAt(0);
+        }
+
+        final String finalMessage = builder.toString();
+
         uxModule.executorService().execute(() -> {
             Placeholder[] placeholders = new Placeholder[]{
                     Placeholder.create("receiver_name", receiver::getName),
                     Placeholder.create("sender_name", sender::getName),
-                    Placeholder.create("message", () -> message)
+                    Placeholder.createFinal("message", finalMessage)
             };
             AsyncDirectMessageEvent event = new AsyncDirectMessageEvent(
                     sender,
                     receiver,
-                    message,
+                    finalMessage,
                     Text.create(Placeholders.resolve(
                             directMessagesConfig.receiverFormat,
                             placeholders

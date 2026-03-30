@@ -12,6 +12,7 @@ import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import su.hitori.api.Pair;
+import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.nms.PacketBundleBuilder;
 import su.hitori.api.util.Pipeline;
 import su.hitori.api.util.Task;
@@ -24,10 +25,13 @@ import su.hitori.ux.placeholder.Placeholders;
 import su.hitori.ux.storage.DataContainer;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 import static su.hitori.api.nms.NMSUtil.asNMS;
 
 public final class Tab {
+
+    private static final Logger LOGGER = LoggerFactory.instance().create(Tab.class);
 
     private static final String OBJECTIVE_NAME = "hitori_tab";
     private static final DynamicPlaceholder<Player>[] OBJECTIVE_PLACEHOLDERS = new DynamicPlaceholder[]{
@@ -54,17 +58,7 @@ public final class Tab {
 
         sorters.addLast(Key.key("ux", "is_op"), (first, second) -> -Boolean.compare(first.first().isOp(), second.first().isOp()));
         sorters.addLast(Key.key("ux", "alphabetical"), (first, second) -> {
-            String name1 = first.first().getName().toLowerCase();
-            String name2 = second.first().getName().toLowerCase();
-
-            int length1 = name1.length(), length2 = name2.length();
-            for (int i = 0; i < length1; i++) {
-                char secondChar = name2.charAt(Math.min(i, length2));
-                int result = Integer.compare(name1.charAt(i), secondChar);
-                if(result != 0) return result;
-            }
-
-            return 0;
+            return first.first().getName().compareToIgnoreCase(second.first().getName());
         });
 
         scoreboard.addObjective(
@@ -128,7 +122,14 @@ public final class Tab {
     }
 
     private void updateAsync() {
-        uxModule.executorService().execute(this::update);
+        uxModule.executorService().execute(() -> {
+            try {
+                update();
+            }
+            catch (Exception e) {
+                LOGGER.warning(e.getMessage());
+            }
+        });
     }
 
     private void update() {
@@ -181,6 +182,8 @@ public final class Tab {
         double milliSecondsPerTick = Bukkit.getAverageTickTime();
         int online = Bukkit.getOnlinePlayers().size();
 
+        int maxIndexLength = String.valueOf(listSize).length();
+
         for (TabEntry entry : list) {
             // Clear old team data
             clearFakeTeams(entry);
@@ -201,7 +204,7 @@ public final class Tab {
                 }
 
                 String playerName = player.getName();
-                String teamName = i + playerName;
+                String teamName = String.format("%0" + maxIndexLength + "d", i) + '_' + playerName;
                 if(teamName.length() > 16)
                     teamName = teamName.substring(0, 16);
 
@@ -252,11 +255,15 @@ public final class Tab {
         )));
     }
 
-    public void addPlayer(Player player) {
+    private void addPlayer(Player player) {
         if(tabEntries.containsKey(player)) return;
-        uxModule.storage().getUserDataContainer(player).thenAccept(container ->
-                tabEntries.put(player, new TabEntry(player, container, sorters, player::canSee))
-        );
+        uxModule.storage().getUserDataContainer(player)
+                .thenAccept(container -> addPlayer(player, container));
+    }
+
+    public void addPlayer(Player player, DataContainer container) {
+        if(tabEntries.containsKey(player)) return;
+        tabEntries.put(player, new TabEntry(player, container, sorters, player::canSee));
     }
 
     public void removePlayer(Player player) {

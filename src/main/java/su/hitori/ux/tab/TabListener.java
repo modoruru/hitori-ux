@@ -2,8 +2,8 @@ package su.hitori.ux.tab;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 
 public final class TabListener implements Listener {
 
@@ -14,8 +14,8 @@ public final class TabListener implements Listener {
     }
 
     @EventHandler
-    private void onPlayerJoin(PlayerJoinEvent event) {
-        tab.addPlayer(event.getPlayer());
+    private void onPlayerJoin(AsyncPlayerSynchronizationEvent event) {
+        tab.addPlayer(event.player(), event.container());
     }
 
     @EventHandler
