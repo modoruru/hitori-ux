@@ -3,6 +3,7 @@ package su.hitori.ux.storage.def;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
@@ -13,9 +14,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.logging.Logger;
 
 public final class DefaultDataContainerImpl implements DataContainer {
 
+    private static final Logger LOGGER = LoggerFactory.instance().create();
     static final int RETAINING_TIME_SECONDS = 15;
 
     private static final Set<Class<?>> JSON_GENERICS = Set.of(
@@ -63,7 +66,12 @@ public final class DefaultDataContainerImpl implements DataContainer {
             Object object = json.opt(field.name());
             if(object == null) continue;
 
-            values.put(field, field.codec().decode(object));
+            try {
+                values.put(field, field.codec().decode(object));
+            }
+            catch (Exception e) {
+                LOGGER.warning(e.getMessage());
+            }
         }
     }
 

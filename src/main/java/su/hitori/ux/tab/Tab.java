@@ -43,7 +43,7 @@ public final class Tab {
     private final Scoreboard scoreboard;
 
     private final Map<Player, TabEntry> tabEntries;
-    private final Pipeline<Comparator<Pair<Player, DataContainer>>> sorters;
+    private final Pipeline<Comparator<TabEntry>> sorters;
     private final UXConfiguration.Tab configuration;
 
     private Task task;
@@ -56,10 +56,14 @@ public final class Tab {
         this.sorters = new Pipeline<>();
         this.configuration = UXConfiguration.I.tab;
 
-        sorters.addLast(Key.key("ux", "is_op"), (first, second) -> -Boolean.compare(first.first().isOp(), second.first().isOp()));
-        sorters.addLast(Key.key("ux", "alphabetical"), (first, second) -> {
-            return first.first().getName().compareToIgnoreCase(second.first().getName());
-        });
+        sorters.addLast(
+                Key.key("ux", "is_op"),
+                (first, second) -> -Boolean.compare(first.player.isOp(), second.player.isOp())
+        );
+        sorters.addLast(
+                Key.key("ux", "alphabetical"),
+                (first, second) -> first.player.getName().compareToIgnoreCase(second.player.getName())
+        );
 
         scoreboard.addObjective(
                 OBJECTIVE_NAME,
@@ -71,7 +75,7 @@ public final class Tab {
         );
     }
 
-    public Pipeline<Comparator<Pair<Player, DataContainer>>> sortingPipeline() {
+    public Pipeline<Comparator<TabEntry>> sortingPipeline() {
         return sorters;
     }
 
@@ -79,7 +83,7 @@ public final class Tab {
     public void start() {
         if(task != null || !UXConfiguration.I.tab.enabled) return;
 
-        task = Task.runTaskTimerGlobally(
+        task = Task.runTaskTimerAsync(
                 this::updateAsync,
                 1L,
                 Math.max(1, configuration.updateIntervalSeconds) * 20L
@@ -122,14 +126,12 @@ public final class Tab {
     }
 
     private void updateAsync() {
-        uxModule.executorService().execute(() -> {
-            try {
-                update();
-            }
-            catch (Exception e) {
-                LOGGER.warning(e.getMessage());
-            }
-        });
+        try {
+            update();
+        }
+        catch (Exception e) {
+            LOGGER.warning(e.getMessage());
+        }
     }
 
     private void update() {
@@ -204,9 +206,7 @@ public final class Tab {
                 }
 
                 String playerName = player.getName();
-                String teamName = String.format("%0" + maxIndexLength + "d", i) + '_' + playerName;
-                if(teamName.length() > 16)
-                    teamName = teamName.substring(0, 16);
+                String teamName = String.format("%0" + maxIndexLength + "d", i);
 
                 PlayerTeam team = new PlayerTeam(scoreboard, teamName);
                 team.setNameTagVisibility(Team.Visibility.NEVER);

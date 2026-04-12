@@ -167,8 +167,9 @@ public final class Chat {
             if(builder.isEmpty()) return;
         }
 
-        while (builder.charAt(0) == '\\') {
-            builder.deleteCharAt(0);
+        int length = builder.length();
+        while (builder.charAt(length - 1) == '\\') {
+            builder.deleteCharAt(--length);
         }
 
         // URL Processing
@@ -405,9 +406,12 @@ public final class Chat {
 
         // todo: message processing logic from main chat
         StringBuilder builder = new StringBuilder(message);
-        while (builder.charAt(0) == '\\') {
-            builder.deleteCharAt(0);
+        int length = builder.length();
+        while (builder.charAt(length - 1) == '\\') {
+            builder.deleteCharAt(--length);
         }
+
+        if(builder.isEmpty()) return;
 
         final String finalMessage = builder.toString();
 

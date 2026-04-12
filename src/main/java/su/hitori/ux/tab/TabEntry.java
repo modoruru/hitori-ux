@@ -13,11 +13,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
-final class TabEntry implements Comparable<TabEntry> {
+public final class TabEntry implements Comparable<TabEntry> {
 
     final Player player;
     final DataContainer container;
-    final Pipeline<Comparator<Pair<Player, DataContainer>>> sorters;
+    final Pipeline<Comparator<TabEntry>> sorters;
     final Predicate<Player> listedPredicate;
     final Set<TabEntry> unlisted;
     final Set<PlayerTeam> fakeTeams;
@@ -25,13 +25,21 @@ final class TabEntry implements Comparable<TabEntry> {
     boolean initialized;
     NumberFormat objectiveValue;
 
-    TabEntry(Player player, DataContainer container, Pipeline<Comparator<Pair<Player, DataContainer>>> sorters, Predicate<Player> listedPredicate) {
+    TabEntry(Player player, DataContainer container, Pipeline<Comparator<TabEntry>> sorters, Predicate<Player> listedPredicate) {
         this.player = player;
         this.container = container;
         this.sorters = sorters;
         this.listedPredicate = listedPredicate;
         this.unlisted = new HashSet<>();
         this.fakeTeams = new HashSet<>();
+    }
+
+    public Player player() {
+        return player;
+    }
+
+    public DataContainer container() {
+        return container;
     }
 
     /**
@@ -50,10 +58,9 @@ final class TabEntry implements Comparable<TabEntry> {
     }
 
     @Override
-    public int compareTo(@NotNull TabEntry o) {
-        Pair<Player, DataContainer> first = Pair.of(player, container), second = Pair.of(o.player, o.container);
-        for (Comparator<Pair<Player, DataContainer>> comparator : sorters) {
-            int result = comparator.compare(first, second);
+    public int compareTo(@NotNull TabEntry that) {
+        for (Comparator<TabEntry> comparator : sorters) {
+            int result = comparator.compare(this, that);
             if(result != 0) return result;
         }
         return 0;
