@@ -8,16 +8,19 @@ import dev.jorel.commandapi.executors.CommandArguments;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.json.JSONObject;
-import su.hitori.api.util.Either;
-import su.hitori.api.util.Messages;
-import su.hitori.api.util.Task;
+import su.hitori.api.util.*;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
+import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
+import su.hitori.ux.storage.serialize.JSONCodec;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -43,8 +46,106 @@ public final class StorageCommand extends CommandAPICommand {
 
                 new CommandAPICommand("dump")
                         .withArguments(new TextArgument("name"))
-                        .executes(this::dump)
+                        .executes(this::dump),
+
+                new CommandAPICommand("initializeServer")
+                        .withArguments(new TextArgument("field"), new TextArgument("file"))
+                        .executes(this::initialize),
+
+                new CommandAPICommand("saveServer")
+                        .withArguments(new TextArgument("field"), new TextArgument("file"))
+                        .executes(this::save)
         );
+    }
+
+    private void initialize(CommandSender sender, CommandArguments args) {
+        String fieldName = (String) args.get("field");
+        assert fieldName != null;
+
+        Set<DataField<?>> scheme = storage.serverDataScheme;
+
+        DataField<?> field = scheme.stream()
+                .filter(field0 -> field0.name().equalsIgnoreCase(fieldName)).findFirst()
+                .orElse(null);
+        if(field == null) {
+            sender.sendMessage(Messages.ERROR.create("Can't find requested field."));
+            return;
+        }
+
+        File file = new File(Bukkit.getPluginsFolder().getParentFile(), args.getOrDefaultUnchecked("file", ""));
+        if(!file.exists()) {
+            sender.sendMessage(Messages.ERROR.create("File doesn't exists."));
+            return;
+        }
+
+        Object json = JSONUtil.readFile(file).get("encoded");
+        if(json == null) {
+            sender.sendMessage(Messages.ERROR.create("Encoded object is not found."));
+            return;
+        }
+
+        sender.sendMessage(Messages.INFO.create("Proceeding on loading data..."));
+
+        Object value;
+        try {
+            value = field.codec().decode(json);
+        }
+        catch (Exception exception) {
+            exception.printStackTrace();
+            sender.sendMessage(Messages.ERROR.create("An error has been caught."));
+            return;
+        }
+
+        storage.getServerDataContainer().thenAccept(container -> {
+            if(container == null) return;
+
+            container.set((DataField<Object>) field, value);
+            sender.sendMessage(Messages.INFO.create("Everything should be fine."));
+        });
+    }
+
+    private void save(CommandSender sender, CommandArguments args) {
+        String fieldName = (String) args.get("field");
+        assert fieldName != null;
+
+        Set<DataField<?>> scheme = storage.serverDataScheme;
+
+        DataField<?> field = scheme.stream()
+                .filter(field0 -> field0.name().equalsIgnoreCase(fieldName)).findFirst()
+                .orElse(null);
+        if(field == null) {
+            sender.sendMessage(Messages.ERROR.create("Can't find requested field."));
+            return;
+        }
+
+        File file = new File(Bukkit.getPluginsFolder().getParentFile(), args.getOrDefaultUnchecked("file", ""));
+
+        storage.getServerDataContainer().thenAccept(container -> {
+            if(container == null) return;
+
+            Object object = container.get(field);
+            if(object == null) return;
+
+            Object encoded;
+            try {
+                encoded = UnsafeUtil.<JSONCodec<Object>>cast(field.codec()).encode(object);
+            }
+            catch (Exception exception) {
+                exception.printStackTrace();
+                return;
+            }
+
+            JSONObject json = new JSONObject().put("encoded", encoded);
+            try (FileWriter writer = new FileWriter(file)) {
+                writer.write(json.toString());
+                writer.flush();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            sender.sendMessage(Messages.INFO.create("Everything should be fine."));
+        });
     }
 
     private void dump(CommandSender sender, CommandArguments args) {

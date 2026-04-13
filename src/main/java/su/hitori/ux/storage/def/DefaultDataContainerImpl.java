@@ -5,11 +5,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.UnsafeUtil;
+import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -69,8 +71,10 @@ public final class DefaultDataContainerImpl implements DataContainer {
             try {
                 values.put(field, field.codec().decode(object));
             }
-            catch (Exception e) {
-                LOGGER.warning(e.getMessage());
+            catch (Exception exception) {
+                StringWriter sw = new StringWriter();
+                exception.printStackTrace(new PrintWriter(sw));
+                LOGGER.warning(sw.toString());
             }
         }
     }
@@ -93,7 +97,17 @@ public final class DefaultDataContainerImpl implements DataContainer {
             Object object = values.get(field);
             if(object == null) continue;
 
-            Object encoded = UnsafeUtil.<JSONCodec<Object>>cast(field.codec()).encode(object);
+            Object encoded;
+            try {
+                encoded = UnsafeUtil.<JSONCodec<Object>>cast(field.codec()).encode(object);
+            }
+            catch (Exception exception) {
+                StringWriter sw = new StringWriter();
+                exception.printStackTrace(new PrintWriter(sw));
+                LOGGER.warning(sw.toString());
+                continue;
+            }
+
             Class<?> type = encoded.getClass();
 
             if(!JSON_GENERICS.contains(type)) {

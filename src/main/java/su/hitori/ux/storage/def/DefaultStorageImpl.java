@@ -52,8 +52,8 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     private final Map<String, Identifier> identifierCache;
     private final CompletableFuture<Void> openFuture;
 
-    private final Set<DataField<?>> userDataScheme;
-    private final Set<DataField<?>> serverDataScheme;
+    final Set<DataField<?>> userDataScheme;
+    final Set<DataField<?>> serverDataScheme;
 
     private boolean closed;
     private Task saveTask;
