@@ -15,6 +15,8 @@ import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
 import su.hitori.ux.storage.Storage;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -338,9 +340,24 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
 
         return supplyAsync(() -> queryIdentifier(uuidOrGameName.firstOptional().orElse(null), gameName))
                 .thenApply(
-                        either -> either.firstOptional()
-                                .orElse(Optional.empty())
-                                .orElse(null)
+                        either -> {
+                            if(either.secondPresent()) {
+                                StringWriter writer = new StringWriter();
+                                PrintWriter printWriter = new PrintWriter(writer);
+                                either.second().printStackTrace(printWriter);
+                                LOGGER.warning(String.format(
+                                        "Caught an error on getIdentifier(%s | %s): %s",
+                                        uuidOrGameName.firstOptional()
+                                                .map(UUID::toString)
+                                                .orElse(null),
+                                        gameName,
+                                        writer
+                                ));
+                                return null;
+                            }
+
+                            return either.first().orElse(null);
+                        }
                 );
     }
 

@@ -31,6 +31,7 @@ import su.hitori.ux.storage.Identifier;
 import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.serialize.JSONCodec;
 
+import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.*;
 import java.util.logging.Logger;
@@ -121,11 +122,11 @@ public final class Chat {
 
         chatMessage(
                 from,
-                Text.create(Placeholders.resolveDynamic(
+                Placeholders.resolveDynamic(
                         "!" + event.helloFormat(),
                         joined,
                         PLAYER_NAME_PLACEHOLDER
-                ))
+                )
         );
     }
 
@@ -141,13 +142,33 @@ public final class Chat {
         }
     }
 
+    // note: adventure is a good lib until it comes to handling player input
+    private static String extractRawInput(Component message) {
+        try {
+            Class<?> textComponentImpl_class = Class.forName("net.kyori.adventure.text.TextComponentImpl");
+            if(!textComponentImpl_class.isInstance(message)) throw new RuntimeException();
+
+            Field content_field = textComponentImpl_class.getDeclaredField("content");
+            content_field.setAccessible(true);
+            return (String) content_field.get(message);
+        }
+        catch (Exception _) {
+        }
+
+        // fallback
+        return Text.serialize(message);
+    }
+
     public void chatMessage(Player sender, Component message) {
-        String input = Text.restrictTags(Text.serialize(message).replace("\\\\", "\\"));
-        if(input.isEmpty()) return;
+        chatMessage(sender, extractRawInput(message));
+    }
 
-        StringBuilder builder = new StringBuilder(input); // save input for event
+    public void chatMessage(Player sender, String message) {
+        if(message.isEmpty()) return;
 
-        char firstCharacter = builder.charAt(0);
+        StringBuilder builder = new StringBuilder(Text.restrictTags(message)); // save input for event
+
+        char firstCharacter = message.charAt(0);
         ChatChannel chatChannel = null;
         for (ChatChannel registeredChannel : chatRegistries.chatChannelRegistry.elements()) {
             char channelPrefix = registeredChannel.prefixSymbol();
@@ -233,13 +254,13 @@ public final class Chat {
 
         AsyncPreChatMessageEvent event1 = new AsyncPreChatMessageEvent(
                 sender,
-                input,
+                message,
                 chatChannel,
                 builder.toString()
         );
         if(!event1.callEvent()) return;
 
-        input = event1.formattedMessage();
+        message = event1.formattedMessage();
 
         Set<Player> mentioned = new HashSet<>();
         var mentionsConfig = chatConfig.mentions;
@@ -248,9 +269,9 @@ public final class Chat {
                 if(player == sender) continue;
                 String name = mentionsConfig.requireAtSymbol ? ("@" + player.getName()) : player.getName();
 
-                if(input.contains(name)) {
+                if(message.contains(name)) {
                     mentioned.add(player);
-                    input = input.replaceAll(
+                    message = message.replaceAll(
                             name,
                             Placeholders.resolveDynamic(
                                     chatConfig.mentions.formatting,
@@ -265,7 +286,7 @@ public final class Chat {
         String resultRaw = Placeholders.resolve(
                 chatChannel.format(),
                 Placeholder.create("player_name", sender::getName),
-                Placeholder.createFinal("message", input)
+                Placeholder.createFinal("message", message)
         );
 
         Component result = Text.create(resultRaw);
@@ -331,7 +352,7 @@ public final class Chat {
         if(chatChannel == chatRegistries.localChatChannel) {
             if (receivers.size() == 1 && localChatConfig.nobodyHeardEnabled)
                 sender.sendMessage(Text.create(localChatConfig.nobodyHeard));
-            sendForSpying(sender, receivers, event1.originalMessage(), input, resultRaw);
+            sendForSpying(sender, receivers, event1.originalMessage(), message, resultRaw);
         }
     }
 
