@@ -17,12 +17,12 @@ import java.util.UUID;
 public final class StorageListener implements Listener {
 
     private final DefaultStorageImpl storage;
-    private final boolean resourcepackExists;
+    private final boolean waitForResourcepack;
     private final Set<Player> previouslyLoaded;
 
-    public StorageListener(DefaultStorageImpl storage, boolean resourcepackExists) {
+    public StorageListener(DefaultStorageImpl storage, boolean waitForResourcepack) {
         this.storage = storage;
-        this.resourcepackExists = resourcepackExists;
+        this.waitForResourcepack = waitForResourcepack;
         this.previouslyLoaded = new HashSet<>();
     }
 
@@ -39,13 +39,14 @@ public final class StorageListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     private void onPlayerJoin(PlayerJoinEvent event) {
-        if(!resourcepackExists) storage.syncPlayer(event.getPlayer(), true);
+        if(!waitForResourcepack)
+            storage.syncPlayer(event.getPlayer(), true);
     }
 
     @EventHandler
     private void onPlayerResourcepackStatus(PlayerResourcePackStatusEvent event) {
         Player player = event.getPlayer();
-        if(!resourcepackExists || event.getStatus() != PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED || previouslyLoaded.contains(player)) return;
+        if(!waitForResourcepack || event.getStatus() != PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED || previouslyLoaded.contains(player)) return;
         previouslyLoaded.add(player);
         storage.syncPlayer(player, true);
     }

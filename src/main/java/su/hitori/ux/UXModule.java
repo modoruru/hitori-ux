@@ -20,11 +20,11 @@ import su.hitori.ux.event.Events;
 import su.hitori.ux.nametag.NameTags;
 import su.hitori.ux.nametag.NameTagsListener;
 import su.hitori.ux.notification.Notifications;
+import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.def.DefaultStorageImpl;
 import su.hitori.ux.storage.def.StorageCommand;
 import su.hitori.ux.storage.def.StorageListener;
-import su.hitori.ux.storage.DataContainer;
-import su.hitori.ux.storage.Storage;
 import su.hitori.ux.stream.StreamCommand;
 import su.hitori.ux.stream.StreamListener;
 import su.hitori.ux.stream.Streams;
@@ -98,7 +98,7 @@ public final class UXModule extends Module {
             this.storage = storage;
             context.listeners().register(new StorageListener(
                     storage,
-                    Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
+                    implementationConfig.waitForResourcepackModule && Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
             ));
             context.commands().register(new StorageCommand(storage));
         }

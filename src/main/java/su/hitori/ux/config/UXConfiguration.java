@@ -307,6 +307,9 @@ public final class UXConfiguration extends Configuration {
             public String database = "database";
             public String user = "root";
             public String password = "root";
+
+            @Comment(value = @CommentValue(" Determines if storage will wait (or not) for the player to load resourcepack before loading user data"))
+            public boolean waitForResourcepackModule = true;
         }
     }
 
