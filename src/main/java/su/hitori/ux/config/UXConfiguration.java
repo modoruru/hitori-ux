@@ -295,7 +295,7 @@ public final class UXConfiguration extends Configuration {
     }
 
     public static final class Storage {
-        @Comment(value = {@CommentValue(" default or thirdparty. leave thirdparty if you want other module to replace storage logic")})
+        @Comment(value = {@CommentValue(" default, remote or thirdparty. leave thirdparty if you want other module to replace storage logic")})
         public String implementation = "default";
 
         public DefaultImplementation defaultImplementation = new DefaultImplementation();

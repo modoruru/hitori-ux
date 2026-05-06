@@ -84,7 +84,6 @@ public final class DefaultDataContainerImpl implements DataContainer {
         return identifier;
     }
 
-    @Override
     public long initialSizeInBytes() {
         return initialSizeInBytes;
     }

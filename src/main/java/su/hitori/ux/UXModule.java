@@ -25,6 +25,7 @@ import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.def.DefaultStorageImpl;
 import su.hitori.ux.storage.def.StorageCommand;
 import su.hitori.ux.storage.def.StorageListener;
+import su.hitori.ux.storage.remote.RemoteStorage;
 import su.hitori.ux.stream.StreamCommand;
 import su.hitori.ux.stream.StreamListener;
 import su.hitori.ux.stream.Streams;
@@ -47,7 +48,13 @@ public final class UXModule extends Module {
     private ScheduledExecutorService executorService;
 
     private Storage<? extends DataContainer> storage;
-    private boolean thirdPartyStorage;
+
+    /*
+    0 - default
+    1 - remote
+    2 - third party
+     */
+    private int storageType;
 
     private Advertisements advertisements;
     private Chat chat;
@@ -76,32 +83,39 @@ public final class UXModule extends Module {
 
         // init storage
         var storageConfig = config.storage;
-        if(!storageConfig.implementation.equalsIgnoreCase("default")) thirdPartyStorage = true;
-        else {
-            var implementationConfig = storageConfig.defaultImplementation;
+        storageType = switch (storageConfig.implementation.toLowerCase()) {
+            case "default" -> {
+                var defaultImplementationConfig = storageConfig.defaultImplementation;
 
-            String url, user = "sa", password = "";
-            switch (implementationConfig.type) {
-                case "h2" -> url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
-                case "mysql" -> {
-                    url = String.format("jdbc:mysql://%s/%s", implementationConfig.host, implementationConfig.database);
-                    user = implementationConfig.user;
-                    password = implementationConfig.password;
+                String url, user = "sa", password = "";
+                switch (defaultImplementationConfig.type) {
+                    case "h2" -> url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
+                    case "mysql" -> {
+                        url = String.format("jdbc:mysql://%s/%s", defaultImplementationConfig.host, defaultImplementationConfig.database);
+                        user = defaultImplementationConfig.user;
+                        password = defaultImplementationConfig.password;
+                    }
+                    default -> {
+                        LOGGER.warning("Wrong database type. Only allowed is: \"mysql\" and \"h2\". Local database (h2) will be loaded.");
+                        url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
+                    }
                 }
-                default -> {
-                    LOGGER.warning("Wrong database type. Only allowed is: \"mysql\" and \"h2\". Local database (h2) will be loaded.");
-                    url = "jdbc:h2:%s".formatted(folder().resolve("data").toAbsolutePath());
-                }
+
+                DefaultStorageImpl storage = new DefaultStorageImpl(url, user, password, executorService);
+                this.storage = storage;
+                context.listeners().register(new StorageListener(
+                        storage,
+                        defaultImplementationConfig.waitForResourcepackModule && Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
+                ));
+                context.commands().register(new StorageCommand(storage));
+                yield 0;
             }
-
-            DefaultStorageImpl storage = new DefaultStorageImpl(url, user, password, executorService);
-            this.storage = storage;
-            context.listeners().register(new StorageListener(
-                    storage,
-                    implementationConfig.waitForResourcepackModule && Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
-            ));
-            context.commands().register(new StorageCommand(storage));
-        }
+            case "remote" -> {
+                storage = new RemoteStorage(executorService);
+                yield 1;
+            }
+            default -> 2;
+        };
 
         advertisements = new Advertisements();
         chat = new Chat(this);
@@ -163,7 +177,7 @@ public final class UXModule extends Module {
         );
 
         context.enableHooksFuture().thenRun(() -> {
-            if(thirdPartyStorage && storage == null) {
+            if(storageType != 2 && storage == null) {
                 // todo: maybe add a logic to framework to disable module manually
                 LOGGER.severe("Module finished loading but Storage implementation was not installed. Module will not work normally");
                 return;
@@ -194,7 +208,7 @@ public final class UXModule extends Module {
     }
 
     public void installStorage(Storage<? extends DataContainer> storage) {
-        if(!thirdPartyStorage || this.storage != null) return;
+        if(storageType != 2 || this.storage != null) return;
         this.storage = storage;
     }
 

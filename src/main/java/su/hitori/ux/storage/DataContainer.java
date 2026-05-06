@@ -1,7 +1,5 @@
 package su.hitori.ux.storage;
 
-import org.bukkit.entity.Player;
-
 import javax.annotation.Nullable;
 
 /**
@@ -14,12 +12,6 @@ public interface DataContainer {
      * Identifier of container
      */
     Identifier identifier();
-
-    /**
-     * Size this container weighed when it was initialized
-     * @return size in bytes
-     */
-    long initialSizeInBytes();
 
     /**
      * Is this container is already closed. If true, container will throw an exception on any attempt to manipulate with data.
