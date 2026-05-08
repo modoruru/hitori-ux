@@ -13,9 +13,9 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
 import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
+import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
-import su.hitori.ux.storage.DataContainer;
 
 import java.net.MalformedURLException;
 import java.net.URI;

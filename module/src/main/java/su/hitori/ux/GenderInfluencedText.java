@@ -1,8 +1,8 @@
 package su.hitori.ux;
 
 import su.hitori.ux.config.UXConfiguration;
-import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.DataContainer;
+import su.hitori.ux.storage.DataField;
 
 public record GenderInfluencedText(String maleVariant, String femaleVariant) {
 
