@@ -32,6 +32,7 @@ import su.hitori.ux.stream.Streams;
 import su.hitori.ux.tab.Tab;
 import su.hitori.ux.tab.TabListener;
 
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -111,7 +112,7 @@ public final class UXModule extends Module {
                 yield 0;
             }
             case "remote" -> {
-                storage = new RemoteStorage(executorService);
+                storage = new RemoteStorage(executorService, URI.create("localhost"), "id", "secret");
                 yield 1;
             }
             default -> 2;

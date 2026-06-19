@@ -1,4 +1,5 @@
 plugins {
+    java
     id("io.papermc.paperweight.userdev") version "2.0.0-beta.17"
 }
 
@@ -8,6 +9,8 @@ dependencies {
     compileOnly("dev.jorel:commandapi-paper-core:11.0.0")
     compileOnly("com.github.modoruru:hitori:${properties.getOrDefault("hitori_version", "")}")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.10.0")
+
+    compileOnly(project(":remote-storage"))
 }
 
 tasks {

@@ -4,7 +4,6 @@ plugins {
 }
 
 subprojects {
-    apply(plugin = "java")
     apply(plugin = "maven-publish")
 
     repositories {

@@ -1,5 +1,10 @@
 plugins {
+    id("java-library")
+}
 
+dependencies {
+    api("org.java-websocket:Java-WebSocket:1.6.0")
+    implementation("org.json:json:20251224")
 }
 
 extensions.configure<PublishingExtension> {
