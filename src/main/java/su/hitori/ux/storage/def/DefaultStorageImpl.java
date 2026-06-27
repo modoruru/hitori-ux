@@ -242,7 +242,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                     )));
 
                     if(callEvent)
-                        new AsyncPlayerSynchronizationEvent(player, container).callEvent();
+                        Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 0L);
                 });
     }
 
