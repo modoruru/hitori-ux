@@ -99,7 +99,7 @@ public final class StorageCommand extends CommandAPICommand {
         storage.getServerDataContainer().thenAccept(container -> {
             if(container == null) return;
 
-            container.set((DataField<Object>) field, value);
+            container.set(UnsafeUtil.cast(field), value);
             sender.sendMessage(Messages.INFO.create("Everything should be fine."));
         });
     }

@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import su.hitori.api.logging.LoggerFactory;
+import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
@@ -111,7 +112,7 @@ public final class DefaultDataContainerImpl implements DataContainer {
             Class<?> type = encoded.getClass();
 
             if(!JSON_GENERICS.contains(type)) {
-                new RuntimeException("Encoded object for field " + field + " returns a non-generic type: " + type.getSimpleName()).printStackTrace();
+                LOGGER.warning(LoggerUtil.exceptionToString(new RuntimeException("Encoded object for field " + field + " returns a non-generic type: " + type.getSimpleName())));
                 continue;
             }
 
