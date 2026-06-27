@@ -40,7 +40,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     protected final String user;
     protected final String password;
 
-    private final Map<Identifier, CompletableFuture<@Nullable RemoteDataContainer>> requestCache;
+    private final Map<Identifier, CachedRequest> requestCache;
     private final Map<Identifier, RemoteDataContainer> dataCache;
     private final Map<String, Identifier> identifierCache;
     private final CompletableFuture<Void> openFuture;
@@ -50,7 +50,6 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
     private boolean initialized;
     private boolean closed;
-    private Task saveTask;
     private Task removeTemporaryTask;
 
     public RemoteStorage(ExecutorService executorService, URI uri, String user, String password) {
@@ -72,11 +71,12 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     protected void handleMessage(JSONObject messageBody) {
         switch (messageBody.optString("type", "").toLowerCase()) {
             case "storage_connect" -> {
-                if(initialized) break;
+                if(initialized || closed) break;
 
                 boolean success = messageBody.optBoolean("success", false);
                 if(success) {
                     openFuture.complete(null);
+                    initialized = true;
                     LOGGER.info("RemoteStorage initialized!");
                 }
                 else {
@@ -126,7 +126,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 }
 
                 Identifier identifier = RemoteStorageUtil.decodeIdentifier(identifierBody);
-                var request = requestCache.get(identifier);
+                var request = requestCache.remove(identifier);
                 if(request == null) {
                     LOGGER.warning(String.format(
                             "Received view_container message for [uuid: %s, game_uuid: %s, game_name: %s] without requesting it :)",
@@ -137,7 +137,18 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                     return;
                 }
 
+                RemoteDataContainer container = new RemoteDataContainer(
+                        this,
+                        identifier,
+                        (SERVER_DATA_IDENTIFIER.equals(identifier) ? serverDataScheme : userDataScheme).values(),
+                        request.cache()
+                );
 
+                JSONObject containerBody = messageBody.optJSONObject("container");
+                if(containerBody != null) container.initialize(containerBody);
+
+                dataCache.put(identifier, container);
+                request.request().complete(container);
             }
             default -> {}
         }
@@ -200,12 +211,6 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         });
     }
 
-    private <T> CompletableFuture<T> supplyAsync(Supplier<T> supplier) {
-        if(isInitialized()) return CompletableFuture.supplyAsync(supplier, executorService);
-        else if(closed) return CompletableFuture.completedFuture(null);
-        return openFuture.thenCompose(_ -> CompletableFuture.supplyAsync(supplier, executorService));
-    }
-
     @Override
     public void close() {
         if(!isInitialized() || closed) return;
@@ -240,8 +245,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             return CompletableFuture.completedFuture(cachedData);
         }
 
-        var cachedFuture = requestCache.get(identifier);
-        if(cachedFuture != null && !cachedFuture.isDone()) return cachedFuture;
+        var cachedRequest = requestCache.get(identifier).request();
+        if(cachedRequest != null && !cachedRequest.isDone()) return cachedRequest;
 
         if(!requestIfNotCached) return CompletableFuture.completedFuture(null);
 
@@ -251,14 +256,30 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 return new CompletableFuture<>();
             });
 
-            future.whenComplete((_, _) -> requestCache.remove(key, future));
+            future.whenComplete((_, _) -> requestCache.remove(key));
 
-            return future;
-        });
+            return new CachedRequest(future, cache);
+        }).request();
     }
 
     public CompletableFuture<RemoteDataContainer> getUserDataContainer(Either<UUID, String> uuidOrGameName, boolean requestIfNotCached, boolean cache) {
 
+    }
+
+    void pushValueAsync(Identifier identifier, String field, Object value) {
+        executorService.execute(() -> {
+            JSONObject messageBody = new JSONObject()
+                    .put("type", "storage_data_push")
+                    .put(
+                            "identifier",
+                            new JSONObject()
+                                    .put("uuid", identifier.uuid().toString())
+                    )
+                    .put("field", field);
+            if(value != null) messageBody.put("value", value);
+
+            clientSocket.send(messageBody.toString());
+        });
     }
 
     private void createViewRequest(UUID uuid, UUID gameUuid, String gameName) {

@@ -1,32 +1,63 @@
 package su.hitori.ux.storage.remote;
 
+import org.json.JSONObject;
 import org.jspecify.annotations.Nullable;
+import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 public final class RemoteDataContainer implements DataContainer {
 
+    private static final Logger LOGGER = LoggerFactory.instance().create();
+
+    private final RemoteStorage remoteStorage;
+
     private final Identifier identifier;
-    private final Set<DataField<?>> fields;
+    private final Collection<DataField<?>> fields;
     private final Map<DataField<?>, Object> values;
 
     boolean temporary;
     long lastAccess;
     boolean closed;
 
-    RemoteDataContainer(Identifier identifier, Set<DataField<?>> fields, boolean temporary) {
+    RemoteDataContainer(RemoteStorage remoteStorage, Identifier identifier, Collection<DataField<?>> fields, boolean temporary) {
+        this.remoteStorage = remoteStorage;
+
         this.identifier = identifier;
         this.fields = fields;
         this.values = new ConcurrentHashMap<>();
 
         this.temporary = temporary;
         this.lastAccess = System.currentTimeMillis();
+    }
+
+    void initialize(JSONObject json) {
+        if(json == null) return;
+
+        values.clear();
+
+        for (DataField<?> field : fields) {
+            Object object = json.opt(field.name());
+            if(object == null) continue;
+
+            try {
+                values.put(field, field.codec().decode(object));
+            }
+            catch (Exception exception) {
+                StringWriter sw = new StringWriter();
+                exception.printStackTrace(new PrintWriter(sw));
+                LOGGER.warning(sw.toString());
+            }
+        }
     }
 
     @Override
@@ -58,7 +89,7 @@ public final class RemoteDataContainer implements DataContainer {
 
         values.put(field, value);
 
-        // todo: update value on remote
+        remoteStorage.pushValueAsync(identifier, field.name(), value);
     }
 
 }
