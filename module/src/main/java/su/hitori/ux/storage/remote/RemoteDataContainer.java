@@ -1,6 +1,5 @@
 package su.hitori.ux.storage.remote;
 
-import org.json.JSONObject;
 import org.jspecify.annotations.Nullable;
 import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.storage.DataContainer;
@@ -21,7 +20,7 @@ public final class RemoteDataContainer implements DataContainer {
     long lastAccess;
     boolean closed;
 
-    RemoteDataContainer(Identifier identifier, Set<DataField<?>> fields, boolean temporary, JSONObject json) {
+    RemoteDataContainer(Identifier identifier, Set<DataField<?>> fields, boolean temporary) {
         this.identifier = identifier;
         this.fields = fields;
         this.values = new ConcurrentHashMap<>();

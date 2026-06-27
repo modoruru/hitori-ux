@@ -299,6 +299,15 @@ public final class UXConfiguration extends Configuration {
         public String implementation = "default";
 
         public DefaultImplementation defaultImplementation = new DefaultImplementation();
+        public RemoteImplementation remoteImplementation = new RemoteImplementation();
+
+        public static final class RemoteImplementation {
+            @Comment(value = {@CommentValue(" RemoteStorage does not guarantee data scheme synchronization between servers. This means that one server on the network may have different data fields than another. If an update is received on this server for a field that does not exist, a warning will be printed.")})
+            public boolean nonExistingFieldUpdateWarning = true;
+            public String address = "localhost:80";
+            public String user = "root";
+            public String password = "root";
+        }
 
         public static final class DefaultImplementation {
             @Comment(value = {@CommentValue(" mysql, h2")})

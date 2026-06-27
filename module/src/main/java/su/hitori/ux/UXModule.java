@@ -112,7 +112,13 @@ public final class UXModule extends Module {
                 yield 0;
             }
             case "remote" -> {
-                storage = new RemoteStorage(executorService, URI.create("localhost"), "id", "secret");
+                var remoteImplementationConfig = storageConfig.remoteImplementation;
+                storage = new RemoteStorage(
+                        executorService,
+                        URI.create(remoteImplementationConfig.address),
+                        remoteImplementationConfig.user,
+                        remoteImplementationConfig.password
+                );
                 yield 1;
             }
             default -> 2;
