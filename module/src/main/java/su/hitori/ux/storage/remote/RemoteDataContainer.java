@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 
 public final class RemoteDataContainer implements DataContainer {
 
+    static final int RETAINING_TIME_SECONDS = 15;
     private static final Logger LOGGER = LoggerFactory.instance().create();
 
     private final RemoteStorage remoteStorage;
@@ -90,6 +91,15 @@ public final class RemoteDataContainer implements DataContainer {
         values.put(field, value);
 
         remoteStorage.pushValueAsync(identifier, field.name(), value);
+    }
+
+    void close() {
+        if(closed) return;
+
+        values.clear();
+        remoteStorage.trackingStatus(identifier.uuid(), false);
+
+        closed = true;
     }
 
 }

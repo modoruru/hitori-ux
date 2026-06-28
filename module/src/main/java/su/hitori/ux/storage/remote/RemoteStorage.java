@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.Either;
+import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.UnsafeUtil;
 import su.hitori.ux.config.UXConfiguration;
@@ -15,17 +16,16 @@ import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.remote.client.ClientSocket;
 
 import java.net.URI;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
 
 public class RemoteStorage implements Storage<RemoteDataContainer> {
+
+    private static final int REQUEST_TIMEOUT_SECONDS = 30;
 
     private static final Identifier SERVER_DATA_IDENTIFIER = new Identifier(
             new UUID(0, 0),
@@ -40,9 +40,15 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     protected final String user;
     protected final String password;
 
-    private final Map<Identifier, CachedRequest> requestCache;
+    private final Map<UUID, CachedRequest> requestCache;
+    private final Map<UUID, UUID> requestedUuidToRequestUuidCache, requestedGameUuidToRequestUuidCache;
+    private final Map<String, UUID> requestedGameNameToRequestUuidCache;
+    private final Map<UUID, CompletableFuture<@Nullable Identifier>> identifierRequests;
+
     private final Map<Identifier, RemoteDataContainer> dataCache;
-    private final Map<String, Identifier> identifierCache;
+    private final Map<UUID, Identifier> identifierCacheByUuid, identifierCacheByGameUuid;
+    private final Map<String, Identifier> identifierCacheByGameName;
+
     private final CompletableFuture<Void> openFuture;
 
     final Map<String, DataField<?>> userDataScheme;
@@ -59,8 +65,16 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         this.password = password;
 
         this.requestCache = new ConcurrentHashMap<>();
+        this.requestedUuidToRequestUuidCache = new ConcurrentHashMap<>();
+        this.requestedGameUuidToRequestUuidCache = new ConcurrentHashMap<>();
+        this.requestedGameNameToRequestUuidCache = new ConcurrentHashMap<>();
+        this.identifierRequests = new ConcurrentHashMap<>();
+
+        this.identifierCacheByUuid = new ConcurrentHashMap<>();
+        this.identifierCacheByGameUuid = new ConcurrentHashMap<>();
+        this.identifierCacheByGameName = new ConcurrentHashMap<>();
+
         this.dataCache = new ConcurrentHashMap<>();
-        this.identifierCache = new ConcurrentHashMap<>();
         this.openFuture = new CompletableFuture<>();
 
         this.userDataScheme = new HashMap<>();
@@ -75,9 +89,23 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
                 boolean success = messageBody.optBoolean("success", false);
                 if(success) {
-                    openFuture.complete(null);
                     initialized = true;
                     LOGGER.info("RemoteStorage initialized!");
+
+                    removeTemporaryTask = Task.runTaskTimerGlobally(() -> executorService.execute(() -> {
+                        if(!initialized || closed) return;
+
+                        Set<Identifier> toClose = new HashSet<>();
+                        for (RemoteDataContainer container : dataCache.values()) {
+                            if(container.temporary && System.currentTimeMillis() > (container.lastAccess + RemoteDataContainer.RETAINING_TIME_SECONDS * 1000L)) {
+                                toClose.add(container.identifier());
+                            }
+                        }
+                        toClose.forEach(this::quit);
+
+                    }), 0L, 20L);
+
+                    openFuture.complete(null);
                 }
                 else {
                     LOGGER.warning(String.format(
@@ -126,7 +154,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 }
 
                 Identifier identifier = RemoteStorageUtil.decodeIdentifier(identifierBody);
-                var request = requestCache.remove(identifier);
+                var request = findCachedRequest(identifier.uuid(), identifier.gameUuid(), identifier.gameName(), true);
                 if(request == null) {
                     LOGGER.warning(String.format(
                             "Received view_container message for [uuid: %s, game_uuid: %s, game_name: %s] without requesting it :)",
@@ -148,7 +176,21 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 if(containerBody != null) container.initialize(containerBody);
 
                 dataCache.put(identifier, container);
+                identifierCacheByUuid.put(identifier.uuid(), identifier);
+                identifierCacheByGameUuid.put(identifier.gameUuid(), identifier);
+                identifierCacheByGameName.put(identifier.gameName().toLowerCase(), identifier);
+
+                trackingStatus(identifier.uuid(), true);
+
                 request.request().complete(container);
+            }
+            case "complete_identifier" -> {
+                UUID uuid = UUID.fromString(messageBody.optString("request_uuid"));
+
+                var request = identifierRequests.remove(uuid);
+                if(request == null) return;
+
+                request.complete(RemoteStorageUtil.decodeIdentifier(messageBody));
             }
             default -> {}
         }
@@ -215,12 +257,70 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     public void close() {
         if(!isInitialized() || closed) return;
 
-        closed = true;
+        try {
+            clientSocket.closeBlocking();
+        }
+        catch (Throwable exception) {
+            LOGGER.severe(LoggerUtil.exceptionToString(exception));
+        }
+        finally {
+            removeTemporaryTask.cancel();
+            removeTemporaryTask = null;
+
+            requestCache.clear();
+            requestedUuidToRequestUuidCache.clear();
+            requestedGameUuidToRequestUuidCache.clear();
+            requestedGameNameToRequestUuidCache.clear();
+
+            dataCache.clear();
+            identifierCacheByUuid.clear();
+            identifierCacheByGameUuid.clear();
+            identifierCacheByGameName.clear();
+
+            closed = true;
+        }
+    }
+
+    void quit(Player player) {
+        Identifier identifier = identifierCacheByGameName.remove(player.getName().toLowerCase());
+        if(identifier == null) return;
+
+        identifierCacheByUuid.remove(identifier.uuid());
+        identifierCacheByGameUuid.remove(identifier.gameUuid());
+
+        RemoteDataContainer container = dataCache.get(identifier);
+        if(container == null) return;
+        container.temporary = true;
+        container.lastAccess = System.currentTimeMillis();
+    }
+
+    void quit(Identifier identifier) {
+        RemoteDataContainer container = dataCache.remove(identifier);
+
+        identifierCacheByUuid.remove(identifier.uuid());
+        identifierCacheByGameUuid.remove(identifier.gameUuid());
+        identifierCacheByGameName.remove(identifier.gameName().toLowerCase());
+
+        if(container == null) return;
+        container.close();
+    }
+
+    void trackingStatus(UUID uuid, boolean status) {
+        if(closed || !initialized) return;
+
+        executorService.execute(() -> {
+            clientSocket.send(
+                    new JSONObject()
+                            .put("uuid", uuid.toString())
+                            .put("tracking_status", status)
+                            .toString()
+            );
+        });
     }
 
     @Override
     public CompletableFuture<Set<Identifier>> getAllIdentifiers() {
-        return null;
+        throw new UnsupportedOperationException("not implemented currently");
     }
 
     @Override
@@ -233,37 +333,83 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return getUserDataContainer(SERVER_DATA_IDENTIFIER, true, true);
     }
 
+    private CachedRequest findCachedRequest(UUID uuid, UUID gameUuid, String gameName, boolean delete) {
+        UUID requestUuid = null;
+
+        if(uuid != null) requestUuid = delete
+                ? requestedUuidToRequestUuidCache.remove(uuid)
+                : requestedUuidToRequestUuidCache.get(uuid);
+
+        if(requestUuid == null && gameUuid != null) requestUuid = delete
+                ? requestedGameUuidToRequestUuidCache.remove(gameUuid)
+                : requestedGameUuidToRequestUuidCache.get(gameUuid);
+
+        if(requestUuid == null && gameName != null) requestUuid = delete
+                ? requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase())
+                : requestedGameNameToRequestUuidCache.get(gameName.toLowerCase());
+
+        if(requestUuid == null) return null;
+
+        return delete ? requestCache.remove(requestUuid) : requestCache.get(requestUuid);
+    }
+
+    private RemoteDataContainer findCachedData(UUID uuid, UUID gameUuid, String gameName) {
+        Identifier identifier = null;
+
+        if(uuid != null) identifier = identifierCacheByUuid.get(uuid);
+        if(identifier == null && gameUuid != null) identifier = identifierCacheByGameUuid.get(gameUuid);
+        if(identifier == null && gameName != null) identifier = identifierCacheByGameName.get(gameName.toLowerCase());
+
+        if(identifier == null) return null;
+
+        return dataCache.get(identifier);
+    }
+
     @Override
     public CompletableFuture<RemoteDataContainer> getUserDataContainer(Identifier identifier, boolean requestIfNotCached, boolean cache) {
-        if(closed || identifier == null)
+        return getUserDataContainer(identifier.uuid(), identifier.gameUuid(), identifier.gameName(), requestIfNotCached, cache);
+    }
+
+    public CompletableFuture<RemoteDataContainer> getUserDataContainer(UUID uuid, UUID gameUuid, String gameName, boolean requestIfNotCached, boolean cache) {
+        if(closed || (uuid == null && gameUuid == null && gameName == null))
             return CompletableFuture.completedFuture(null);
 
-        var cachedData = dataCache.get(identifier);
+        RemoteDataContainer cachedData = findCachedData(uuid, gameUuid, gameName);
         if(cachedData != null) {
             if(cachedData.temporary && cache)
                 cachedData.temporary = false;
             return CompletableFuture.completedFuture(cachedData);
         }
 
-        var cachedRequest = requestCache.get(identifier).request();
-        if(cachedRequest != null && !cachedRequest.isDone()) return cachedRequest;
+        CachedRequest cachedRequest = findCachedRequest(uuid, gameUuid, gameName, false);
+        if(cachedRequest != null && !cachedRequest.request().isDone()) return cachedRequest.request();
 
         if(!requestIfNotCached) return CompletableFuture.completedFuture(null);
 
-        return requestCache.computeIfAbsent(identifier, key -> {
-            CompletableFuture<RemoteDataContainer> future = openFuture.thenCompose(_ -> {
-                createViewRequest(identifier.uuid(), identifier.gameUuid(), identifier.gameName());
-                return new CompletableFuture<>();
-            });
+        UUID requestUuid = UUID.randomUUID();
+        CompletableFuture<RemoteDataContainer> future = openFuture.thenCompose(_ -> {
+            executorService.execute(() -> createViewRequest(uuid, gameUuid, gameName));
+            return new CompletableFuture<>();
+        });
+        future.whenComplete((_, _) -> requestCache.remove(requestUuid));
 
-            future.whenComplete((_, _) -> requestCache.remove(key));
+        requestCache.put(requestUuid, new CachedRequest(future, cache));
 
-            return new CachedRequest(future, cache);
-        }).request();
-    }
+        Task.runGlobally(() -> {
+            if (!future.isDone()) {
+                future.completeExceptionally(new TimeoutException("View container request timed out"));
+                requestCache.remove(requestUuid);
+                if (uuid != null) requestedUuidToRequestUuidCache.remove(uuid);
+                if (gameUuid != null) requestedGameUuidToRequestUuidCache.remove(gameUuid);
+                if (gameName != null) requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase());
+            }
+        }, 20L * REQUEST_TIMEOUT_SECONDS);
 
-    public CompletableFuture<RemoteDataContainer> getUserDataContainer(Either<UUID, String> uuidOrGameName, boolean requestIfNotCached, boolean cache) {
+        if(uuid != null) requestedUuidToRequestUuidCache.put(uuid, requestUuid);
+        if(gameUuid != null) requestedGameUuidToRequestUuidCache.put(gameUuid, requestUuid);
+        if(gameName != null) requestedGameNameToRequestUuidCache.put(gameName.toLowerCase(), requestUuid);
 
+        return future;
     }
 
     void pushValueAsync(Identifier identifier, String field, Object value) {
@@ -296,9 +442,60 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         clientSocket.send(requestBody.toString());
     }
 
+    private void createCompleteRequest(UUID uuid, UUID gameUuid, String gameName, UUID requestUuid) {
+        JSONObject requestBody = new JSONObject()
+                .put("type", "complete_identifier")
+                .put("request_uuid", requestUuid.toString());
+
+        if(uuid != null) requestBody.put("uuid", uuid.toString());
+        if(gameUuid != null) requestBody.put("game_uuid", gameUuid.toString());
+        if(gameName != null) requestBody.put("game_name", gameName);
+
+        clientSocket.send(requestBody.toString());
+    }
+
+    @Override
+    public CompletableFuture<RemoteDataContainer> getUserDataContainer(Player player) {
+        return getUserDataContainer(
+                null,
+                player.getUniqueId(),
+                player.getName(),
+                true,
+                false
+        );
+    }
+
     @Override
     public CompletableFuture<@Nullable Identifier> getIdentifier(Either<UUID, String> uuidOrGameName) {
-        return null;
+        if(uuidOrGameName.firstPresent()) {
+            Identifier identifier = identifierCacheByUuid.get(uuidOrGameName.first());
+            if(identifier != null) return CompletableFuture.completedFuture(identifier);
+        }
+
+        if(uuidOrGameName.secondPresent()) {
+            Identifier identifier = identifierCacheByGameName.get(uuidOrGameName.second().toLowerCase());
+            if(identifier != null) return CompletableFuture.completedFuture(identifier);
+        }
+
+        UUID requestUuid = UUID.randomUUID();
+        executorService.execute(() -> createCompleteRequest(
+                uuidOrGameName.firstOptional().orElse(null),
+                null,
+                uuidOrGameName.secondOptional().orElse(null),
+                requestUuid
+        ));
+
+        CompletableFuture<@Nullable Identifier> future = new CompletableFuture<>();
+        identifierRequests.put(requestUuid, future);
+
+        Task.runGlobally(() -> {
+            if (!future.isDone()) {
+                future.completeExceptionally(new TimeoutException("Identifier request timed out"));
+                identifierRequests.remove(requestUuid);
+            }
+        }, 20L * REQUEST_TIMEOUT_SECONDS);
+
+        return future;
     }
 
 }
