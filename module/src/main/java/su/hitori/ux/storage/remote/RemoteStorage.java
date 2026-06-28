@@ -1,19 +1,16 @@
 package su.hitori.ux.storage.remote;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import su.hitori.api.logging.LoggerFactory;
-import su.hitori.api.util.Either;
-import su.hitori.api.util.LoggerUtil;
-import su.hitori.api.util.Task;
-import su.hitori.api.util.UnsafeUtil;
+import su.hitori.api.util.*;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
 import su.hitori.ux.storage.Storage;
-import su.hitori.ux.storage.remote.client.ClientSocket;
 
 import java.net.URI;
 import java.util.*;
@@ -54,6 +51,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     final Map<String, DataField<?>> userDataScheme;
     final Map<String, DataField<?>> serverDataScheme;
 
+    private boolean syncAllPlayers;
     private boolean initialized;
     private boolean closed;
     private Task removeTemporaryTask;
@@ -106,6 +104,9 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                     }), 0L, 20L);
 
                     openFuture.complete(null);
+
+                    if(syncAllPlayers)
+                        Bukkit.getOnlinePlayers().forEach(this::syncPlayer);
                 }
                 else {
                     LOGGER.warning(String.format(
@@ -225,12 +226,15 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     public void open(boolean syncAllPlayers) {
         if(isInitialized()) return;
 
+        this.syncAllPlayers = syncAllPlayers;
+
         CompletableFuture.supplyAsync(() -> {
             try {
                 if(!clientSocket.connectBlocking()) {
                     LOGGER.warning("Unable to connect to RemoteStorage.");
                     throw new IllegalStateException();
                 }
+                LOGGER.info("Connected to endpoint");
 
                 clientSocket.send(
                         new JSONObject()
@@ -239,6 +243,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                                 .put("password", password)
                                 .toString()
                 );
+                LOGGER.info("Sent connection packet");
             }
             catch (Exception e) {
                 throw new RuntimeException(e);
@@ -281,6 +286,23 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         }
     }
 
+    void syncPlayer(Player player) {
+        long start = System.currentTimeMillis();
+        getUserDataContainer(
+                null,
+                player.getUniqueId(),
+                player.getName(),
+                true,
+                true
+        ).thenAccept(_ -> {
+            player.playSound(player, Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+            player.sendActionBar(Text.create(String.format(
+                    "Synchronized in %sms <green>✔</green>",
+                    System.currentTimeMillis() - start
+            )));
+        });
+    }
+
     void quit(Player player) {
         Identifier identifier = identifierCacheByGameName.remove(player.getName().toLowerCase());
         if(identifier == null) return;
@@ -308,14 +330,12 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     void trackingStatus(UUID uuid, boolean status) {
         if(closed || !initialized) return;
 
-        executorService.execute(() -> {
-            clientSocket.send(
-                    new JSONObject()
-                            .put("uuid", uuid.toString())
-                            .put("tracking_status", status)
-                            .toString()
-            );
-        });
+        executorService.execute(() -> clientSocket.send(
+                new JSONObject()
+                        .put("uuid", uuid.toString())
+                        .put("tracking_status", status)
+                        .toString()
+        ));
     }
 
     @Override
@@ -442,13 +462,12 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         clientSocket.send(requestBody.toString());
     }
 
-    private void createCompleteRequest(UUID uuid, UUID gameUuid, String gameName, UUID requestUuid) {
+    private void createCompleteRequest(UUID uuid, String gameName, UUID requestUuid) {
         JSONObject requestBody = new JSONObject()
                 .put("type", "complete_identifier")
                 .put("request_uuid", requestUuid.toString());
 
         if(uuid != null) requestBody.put("uuid", uuid.toString());
-        if(gameUuid != null) requestBody.put("game_uuid", gameUuid.toString());
         if(gameName != null) requestBody.put("game_name", gameName);
 
         clientSocket.send(requestBody.toString());
@@ -480,7 +499,6 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         UUID requestUuid = UUID.randomUUID();
         executorService.execute(() -> createCompleteRequest(
                 uuidOrGameName.firstOptional().orElse(null),
-                null,
                 uuidOrGameName.secondOptional().orElse(null),
                 requestUuid
         ));

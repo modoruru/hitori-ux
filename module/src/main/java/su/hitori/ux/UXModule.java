@@ -26,6 +26,7 @@ import su.hitori.ux.storage.def.DefaultStorageImpl;
 import su.hitori.ux.storage.def.StorageCommand;
 import su.hitori.ux.storage.def.StorageListener;
 import su.hitori.ux.storage.remote.RemoteStorage;
+import su.hitori.ux.storage.remote.RemoteStorageListener;
 import su.hitori.ux.stream.StreamCommand;
 import su.hitori.ux.stream.StreamListener;
 import su.hitori.ux.stream.Streams;
@@ -113,12 +114,14 @@ public final class UXModule extends Module {
             }
             case "remote" -> {
                 var remoteImplementationConfig = storageConfig.remoteImplementation;
-                storage = new RemoteStorage(
+                RemoteStorage remoteStorage = new RemoteStorage(
                         executorService,
                         URI.create(remoteImplementationConfig.address),
                         remoteImplementationConfig.user,
                         remoteImplementationConfig.password
                 );
+                this.storage = remoteStorage;
+                context.listeners().register(new RemoteStorageListener(remoteStorage));
                 yield 1;
             }
             default -> 2;

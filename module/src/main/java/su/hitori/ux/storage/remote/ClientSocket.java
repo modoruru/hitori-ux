@@ -1,4 +1,4 @@
-package su.hitori.ux.storage.remote.client;
+package su.hitori.ux.storage.remote;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;

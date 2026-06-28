@@ -8,10 +8,11 @@ import java.net.InetSocketAddress;
 
 public final class ServerSocket extends WebSocketServer {
 
-    private boolean locked;
+    private final ServerConfiguration serverConfiguration;
 
-    public ServerSocket(InetSocketAddress address) {
-        super(address);
+    public ServerSocket(ServerConfiguration serverConfiguration) {
+        super(new InetSocketAddress(serverConfiguration.port));
+        this.serverConfiguration = serverConfiguration;
     }
 
     @Override

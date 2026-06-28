@@ -9,8 +9,6 @@ dependencies {
     compileOnly("dev.jorel:commandapi-paper-core:11.0.0")
     compileOnly("com.github.modoruru:hitori:${properties.getOrDefault("hitori_version", "")}")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.10.0")
-
-    compileOnly(project(":remote-storage"))
 }
 
 tasks {
