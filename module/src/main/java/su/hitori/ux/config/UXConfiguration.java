@@ -1,20 +1,36 @@
 package su.hitori.ux.config;
 
+import net.elytrium.serializer.NameStyle;
+import net.elytrium.serializer.SerializerConfig;
 import net.elytrium.serializer.annotations.Comment;
 import net.elytrium.serializer.annotations.CommentValue;
-import su.hitori.api.config.Configuration;
+import net.elytrium.serializer.language.object.YamlSerializable;
+import su.hitori.api.logging.LoggerFactory;
 import su.hitori.ux.notification.NotificationType;
+import su.hitori.ux.pronouns.PronounsInfluencedTextConverter;
+import su.hitori.ux.pronouns.SupportedPronouns;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 
 @SuppressWarnings("CanBeFinal")
-public final class UXConfiguration extends Configuration {
+public final class UXConfiguration extends YamlSerializable {
+
+    private static final Logger LOGGER = LoggerFactory.instance().create();
 
     public static UXConfiguration I;
 
     public UXConfiguration(Path path) {
-        super(path);
+        super(
+                path,
+                new SerializerConfig.Builder()
+                        .setFieldNameStyle(NameStyle.CAMEL_CASE)
+                        .setNodeNameStyle(NameStyle.SNAKE_CASE)
+                        .registerSerializer(new PronounsInfluencedTextConverter())
+                        .build()
+        );
         I = this;
     }
 
@@ -69,7 +85,7 @@ public final class UXConfiguration extends Configuration {
         public JoinQuit joinQuit = new JoinQuit();
         public Ignoring ignoring = new Ignoring();
         public Replacements replacements = new Replacements();
-        public Gender gender = new Gender();
+        public Pronouns pronouns = new Pronouns();
         public FirstVisit firstVisit = new FirstVisit();
         public String sharedInventoryFormat = "<hover:show_text:'Click to view %player_name% inventory'><click:run_command:'/sharedinventory %shared_inventory_uuid%'>[%player_name% inventory]";
         public boolean colorFormatting = true;
@@ -77,7 +93,7 @@ public final class UXConfiguration extends Configuration {
         public static final class FirstVisit {
             public boolean enabled = true;
             public int secondsToSpend = 180;
-            public GenderInfluencedText message = new GenderInfluencedText(
+            public PronounsInfluencedText message = new PronounsInfluencedText(
                     """
                             \s
                               Hey, %player_name%! It seems you've played first 3 minutes on our server, we hope you're enjoying it :D
@@ -98,7 +114,7 @@ public final class UXConfiguration extends Configuration {
             @Comment(value = {@CommentValue(" Notification format. %mentioner_name% for name of who mentioned player and %player_name% for mentioned name. Gender for message will be taken from mentioner.")})
             public Notification notification = new Notification(
                     NotificationType.MENTION,
-                    new GenderInfluencedText("%mentioner_name% mentioned you."),
+                    new PronounsInfluencedText("%mentioner_name% mentioned you."),
                     new Sound("block.amethyst_block.hit")
             );
         }
@@ -116,13 +132,15 @@ public final class UXConfiguration extends Configuration {
             public String cantSendYourself = "You can't send message to yourself!";
             public String noRecentMessage = "We doesn't know anything about your recent messages, so use <yellow>/tell</yellow> instead!";
 
-            public GenderInfluencedText haveBlocked = new GenderInfluencedText(
+            public PronounsInfluencedText haveBlocked = new PronounsInfluencedText(
                     "You can't send message to <yellow>%receiver_name%</yellow> because you've blocked him!",
-                    "You can't send message to <yellow>%receiver_name%</yellow> because you've blocked her!"
+                    "You can't send message to <yellow>%receiver_name%</yellow> because you've blocked her!",
+                    "You can't send message to <yellow>%receiver_name%</yellow> because you've blocked them!"
             );
-            public GenderInfluencedText areBlocked = new GenderInfluencedText(
+            public PronounsInfluencedText areBlocked = new PronounsInfluencedText(
                     "You can't send message to <yellow>%receiver_name%</yellow> because he's blocked you!",
-                    "You can't send message to <yellow>%receiver_name%</yellow> because she's blocked you!"
+                    "You can't send message to <yellow>%receiver_name%</yellow> because she's blocked you!",
+                    "You can't send message to <yellow>%receiver_name%</yellow> because they've blocked you!"
             );
         }
 
@@ -145,8 +163,8 @@ public final class UXConfiguration extends Configuration {
 
         public static final class JoinQuit {
             @Comment(value = @CommentValue(" Insert a click event here with command /hello %player_name% to let already online players send hello message for joined"))
-            public GenderInfluencedText join = new GenderInfluencedText("<click:run_command:'/hello %player_name%'>%player_name% <color:#47ff69>joined the server</color></click>");
-            public GenderInfluencedText quit = new GenderInfluencedText("%player_name% <color:#ff4760>left the server</color>");
+            public PronounsInfluencedText join = new PronounsInfluencedText("<click:run_command:'/hello %player_name%'>%player_name% <color:#47ff69>joined the server</color></click>");
+            public PronounsInfluencedText quit = new PronounsInfluencedText("%player_name% <color:#ff4760>left the server</color>");
 
             @Comment(value = @CommentValue(" Sends a hello message by the player who sent /hello <player>"))
             public String hello = "Hey, %player_name% :)";
@@ -166,12 +184,13 @@ public final class UXConfiguration extends Configuration {
 
             @Comment(value = @CommentValue(" Place a username here to make it impossible to ignore this player."))
             public List<String> ignoringResistant = List.of();
-            public GenderInfluencedText tryToIgnoreResistant = new GenderInfluencedText(
+            public PronounsInfluencedText tryToIgnoreResistant = new PronounsInfluencedText(
                     "You can't start ignoring this player, because he is ignoring-resistant!",
-                    "You can't start ignoring this player, because she is ignoring-resistant!"
+                    "You can't start ignoring this player, because she is ignoring-resistant!",
+                    "You can't start ignoring this player, because they are ignoring-resistant!"
             );
 
-            public static final class IgnoringList { // name in favour of java.util.List
+            public static final class IgnoringList { // name in favor of java.util.List
                 public String notIgnoreAnyone = "You don't ignore anyone!";
 
                 @Comment(@CommentValue(" %n% for line break (if there is at least one entry, otherwise empty)"))
@@ -209,13 +228,13 @@ public final class UXConfiguration extends Configuration {
             public String usernameFormat = "%player_name%";
         }
 
-        public static final class Gender {
-            @Comment(value = {@CommentValue(" If disabled, server will always use male message variations.")})
+        public static final class Pronouns {
+            @Comment(value = {@CommentValue(" If disabled, server will always use he/him message variations.")})
             public boolean enabled = true;
-            public String now_man = "You've set the gender to <aqua>male</aqua>.";
-            public String already_man = "You've already set the gender to <aqua>male</aqua>!";
-            public String now_woman = "You've set the gender to <aqua>female</aqua>.";
-            public String already_woman = "You've already set the gender to <aqua>female</aqua>!";
+
+            public String nowSet = "You've set <aqua>%pronouns%</aqua> pronouns.";
+            public String alreadySet = "You've already set <aqua>%pronouns%</aqua> pronouns!";
+            public String noSuchPronouns = "System doesn't knows <aqua>%pronouns%</aqua> pronouns.";
         }
     }
 
@@ -223,7 +242,6 @@ public final class UXConfiguration extends Configuration {
         @Comment(value = {@CommentValue(" Time zone for events. https://en.wikipedia.org/wiki/List_of_tz_database_time_zones (take TZ identifier from table)")})
         public String timeZone = "Europe/Moscow";
 
-        public String alreadyHidden = "You've already hidden information about event!";
         public String hidden = "Information about <bold>this</bold> event will no longer appear.";
         public String noEvent = "There's no such event planned!";
         public String alreadyPlanned = "There's already 3 events planned! End the old one using <yellow><click:run_command:'/event end'><hover:show_text:'Click to run this command'>[\"/event end\"]</yellow> to plan the new one!";
@@ -331,31 +349,57 @@ public final class UXConfiguration extends Configuration {
         }
     }
 
-    public static final class GenderInfluencedText implements ConvertableObject<su.hitori.ux.GenderInfluencedText> {
-        public String male;
-        public String female;
+    public static final class PronounsInfluencedText implements ConvertableObject<su.hitori.ux.pronouns.PronounsInfluencedText> {
+        public String heHim;
+        public String sheHer;
+        public String theyThem;
 
-        public GenderInfluencedText(String same) {
-            this(same, same);
+        public PronounsInfluencedText(String same) {
+            this(same, same, same);
         }
 
-        public GenderInfluencedText(String male, String female) {
-            this.male = male;
-            this.female = female;
+        public PronounsInfluencedText(String heHim, String sheHer, String theyThem) {
+            this.heHim = heHim;
+            this.sheHer = sheHer;
+            this.theyThem = theyThem;
         }
 
         @Override
-        public su.hitori.ux.GenderInfluencedText convert() {
-            return new su.hitori.ux.GenderInfluencedText(male, female);
+        public su.hitori.ux.pronouns.PronounsInfluencedText convert() {
+            return new su.hitori.ux.pronouns.PronounsInfluencedText(Map.of(
+                    SupportedPronouns.HE_HIM, heHim,
+                    SupportedPronouns.SHE_HER, sheHer,
+                    SupportedPronouns.THEY_THEM, theyThem
+            ));
         }
+    }
+
+    @Deprecated(forRemoval = true)
+    public static final class GenderInfluencedText implements ConvertableObject<su.hitori.ux.pronouns.PronounsInfluencedText> {
+        public String male;
+        public String female;
+
+        public GenderInfluencedText() {
+            LOGGER.warning("GenderInfluencedText is deprecated and marked for removal. Consider updating to PronounsInfluencedText.");
+        }
+
+        @Override
+        public su.hitori.ux.pronouns.PronounsInfluencedText convert() {
+            return new su.hitori.ux.pronouns.PronounsInfluencedText(Map.of(
+                    SupportedPronouns.HE_HIM, male,
+                    SupportedPronouns.SHE_HER, female,
+                    SupportedPronouns.THEY_THEM, female
+            ));
+        }
+
     }
 
     public static final class Notification implements ConvertableObject<su.hitori.ux.notification.Notification> {
         private final transient NotificationType type;
-        public GenderInfluencedText text;
+        public PronounsInfluencedText text;
         public Sound sound;
 
-        public Notification(NotificationType type, GenderInfluencedText text, Sound sound) {
+        public Notification(NotificationType type, PronounsInfluencedText text, Sound sound) {
             this.type = type;
             this.text = text;
             this.sound = sound;
@@ -366,7 +410,7 @@ public final class UXConfiguration extends Configuration {
          */
         @Override
         public su.hitori.ux.notification.Notification convert() {
-            return new su.hitori.ux.notification.Notification(type, text.male, sound.convert());
+            return new su.hitori.ux.notification.Notification(type, text.heHim, sound.convert());
         }
     }
 
