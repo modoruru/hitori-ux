@@ -38,7 +38,7 @@ public final class ServerConfiguration {
         }
 
         public ServerConfiguration build() {
-            return new ServerConfiguration(port, users);
+            return new ServerConfiguration(port, Map.copyOf(users));
         }
 
     }

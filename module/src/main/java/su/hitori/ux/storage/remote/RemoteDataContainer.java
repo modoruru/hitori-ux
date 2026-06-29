@@ -90,7 +90,7 @@ public final class RemoteDataContainer implements DataContainer {
 
         values.put(field, value);
 
-        remoteStorage.pushValueAsync(identifier, field.name(), value);
+        remoteStorage.pushValueAsync(identifier.uuid(), field.name(), value);
     }
 
     void close() {

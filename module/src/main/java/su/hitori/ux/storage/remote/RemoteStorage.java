@@ -148,23 +148,42 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             case "view_container" -> {
                 if(!initialized || closed) break;
 
+                String rawRequestUuid = messageBody.optString("request_uuid");
+                if(rawRequestUuid == null || rawRequestUuid.isEmpty())
+                    return; // some shit is happening there
+
+                UUID requestUuid;
+                try {
+                    requestUuid = UUID.fromString(rawRequestUuid);
+                }
+                catch (IllegalArgumentException _) {
+                    // some shit is happening there again
+                    return;
+                }
+
+                CachedRequest request = requestCache.remove(requestUuid);
+                if(request == null) return;
+
+                if(request.requestedUuid() != null)
+                    requestedUuidToRequestUuidCache.remove(request.requestedUuid());
+                if(request.requestedGameUuid() != null)
+                    requestedGameUuidToRequestUuidCache.remove(request.requestedGameUuid());
+                if(request.requestedGameName() != null)
+                    requestedGameNameToRequestUuidCache.remove(request.requestedGameName());
+
+                boolean success = messageBody.optBoolean("success");
+                if(!success) {
+                    request.request().complete(null);
+                    return;
+                }
+
                 JSONObject identifierBody = messageBody.optJSONObject("identifier");
                 if(identifierBody == null) {
-                    LOGGER.warning("Unable to decode \"tracking\" message: " + messageBody);
+                    LOGGER.warning("Unable to decode \"view_container\" message: " + messageBody);
                     return;
                 }
 
                 Identifier identifier = RemoteStorageUtil.decodeIdentifier(identifierBody);
-                var request = findCachedRequest(identifier.uuid(), identifier.gameUuid(), identifier.gameName(), true);
-                if(request == null) {
-                    LOGGER.warning(String.format(
-                            "Received view_container message for [uuid: %s, game_uuid: %s, game_name: %s] without requesting it :)",
-                            identifier.uuid(),
-                            identifier.gameUuid(),
-                            identifier.gameName()
-                    ));
-                    return;
-                }
 
                 RemoteDataContainer container = new RemoteDataContainer(
                         this,
@@ -332,6 +351,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
         executorService.execute(() -> clientSocket.send(
                 new JSONObject()
+                        .put("type", "tracking")
                         .put("uuid", uuid.toString())
                         .put("tracking_status", status)
                         .toString()
@@ -353,24 +373,16 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return getUserDataContainer(SERVER_DATA_IDENTIFIER, true, true);
     }
 
-    private CachedRequest findCachedRequest(UUID uuid, UUID gameUuid, String gameName, boolean delete) {
+    private CachedRequest findCachedRequest(UUID uuid, UUID gameUuid, String gameName) {
         UUID requestUuid = null;
 
-        if(uuid != null) requestUuid = delete
-                ? requestedUuidToRequestUuidCache.remove(uuid)
-                : requestedUuidToRequestUuidCache.get(uuid);
-
-        if(requestUuid == null && gameUuid != null) requestUuid = delete
-                ? requestedGameUuidToRequestUuidCache.remove(gameUuid)
-                : requestedGameUuidToRequestUuidCache.get(gameUuid);
-
-        if(requestUuid == null && gameName != null) requestUuid = delete
-                ? requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase())
-                : requestedGameNameToRequestUuidCache.get(gameName.toLowerCase());
+        if(uuid != null) requestUuid =  requestedUuidToRequestUuidCache.get(uuid);
+        if(requestUuid == null && gameUuid != null) requestUuid = requestedGameUuidToRequestUuidCache.get(gameUuid);
+        if(requestUuid == null && gameName != null) requestUuid = requestedGameNameToRequestUuidCache.get(gameName.toLowerCase());
 
         if(requestUuid == null) return null;
 
-        return delete ? requestCache.remove(requestUuid) : requestCache.get(requestUuid);
+        return requestCache.get(requestUuid);
     }
 
     private RemoteDataContainer findCachedData(UUID uuid, UUID gameUuid, String gameName) {
@@ -401,19 +413,18 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             return CompletableFuture.completedFuture(cachedData);
         }
 
-        CachedRequest cachedRequest = findCachedRequest(uuid, gameUuid, gameName, false);
+        CachedRequest cachedRequest = findCachedRequest(uuid, gameUuid, gameName);
         if(cachedRequest != null && !cachedRequest.request().isDone()) return cachedRequest.request();
 
         if(!requestIfNotCached) return CompletableFuture.completedFuture(null);
 
         UUID requestUuid = UUID.randomUUID();
         CompletableFuture<RemoteDataContainer> future = openFuture.thenCompose(_ -> {
-            executorService.execute(() -> createViewRequest(uuid, gameUuid, gameName));
+            executorService.execute(() -> createViewRequest(uuid, gameUuid, gameName, requestUuid));
             return new CompletableFuture<>();
         });
-        future.whenComplete((_, _) -> requestCache.remove(requestUuid));
 
-        requestCache.put(requestUuid, new CachedRequest(future, cache));
+        requestCache.put(requestUuid, new CachedRequest(future, cache, uuid, gameUuid, gameName));
 
         Task.runGlobally(() -> {
             if (!future.isDone()) {
@@ -432,15 +443,11 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return future;
     }
 
-    void pushValueAsync(Identifier identifier, String field, Object value) {
+    void pushValueAsync(UUID uuid, String field, Object value) {
         executorService.execute(() -> {
             JSONObject messageBody = new JSONObject()
                     .put("type", "storage_data_push")
-                    .put(
-                            "identifier",
-                            new JSONObject()
-                                    .put("uuid", identifier.uuid().toString())
-                    )
+                    .put("uuid", uuid.toString())
                     .put("field", field);
             if(value != null) messageBody.put("value", value);
 
@@ -448,9 +455,10 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         });
     }
 
-    private void createViewRequest(UUID uuid, UUID gameUuid, String gameName) {
+    private void createViewRequest(UUID uuid, UUID gameUuid, String gameName, UUID requestUuid) {
         JSONObject requestBody = new JSONObject()
-                .put("type", "view_container");
+                .put("type", "view_container")
+                .put("request_uuid", requestUuid.toString());
 
         JSONObject identifierBody = new JSONObject();
         if(uuid != null) identifierBody.put("uuid", uuid.toString());
