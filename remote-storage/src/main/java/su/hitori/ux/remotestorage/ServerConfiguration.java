@@ -1,4 +1,4 @@
-package su.hitori.ux.storage.remote.server;
+package su.hitori.ux.remotestorage;
 
 import java.util.HashMap;
 import java.util.Map;

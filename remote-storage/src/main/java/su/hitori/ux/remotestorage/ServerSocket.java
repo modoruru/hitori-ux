@@ -1,4 +1,4 @@
-package su.hitori.ux.storage.remote.server;
+package su.hitori.ux.remotestorage;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.framing.CloseFrame;
@@ -123,7 +123,38 @@ public final class ServerSocket extends WebSocketServer {
                     return;
                 }
 
-                databaseHandle.set(containerUuid, field, messageBody.opt("value"));
+                Identifier identifier = databaseHandle.completeIdentifier(uuid, null, null);
+                if(identifier == null) {
+                    client.closeConnection(CloseFrame.REFUSE, "requested tracking on unknown container.");
+                    return;
+                }
+
+                Object value = messageBody.opt("value");
+                databaseHandle.set(containerUuid, field, value);
+
+                String trackingMessage = null;
+                for (Client wrapper0 : clients.values()) {
+                    if(wrapper0 == wrapper) continue;
+
+                    if(!wrapper0.tracking.contains(containerUuid)) continue;
+
+                    if(trackingMessage == null) {
+                        trackingMessage = new JSONObject()
+                                .put("type", "tracking")
+                                .put(
+                                        "identifier",
+                                        new JSONObject()
+                                                .put("uuid", containerUuid.toString())
+                                                .put("game_uuid", identifier.gameUuid().toString())
+                                                .put("game_name", identifier.gameName())
+                                )
+                                .put("field", field)
+                                .put("value", value)
+                                .toString();
+                    }
+
+                    sendAsync(wrapper0, trackingMessage);
+                }
             }
             case "complete_identifier" -> {
                 Identifier identifier = databaseHandle.completeIdentifier(
@@ -210,7 +241,7 @@ public final class ServerSocket extends WebSocketServer {
                                                 .put("game_uuid", identifier.gameUuid().toString())
                                                 .put("game_name", identifier.gameName())
                                 )
-                                .put("container", new JSONObject(databaseHandle.viewContainer(identifier.uuid())))
+                                .put("container", new JSONObject(databaseHandle.viewContainer(identifier.uuid()).toMap()))
                                 .put("request_uuid", messageBody.optString("request_uuid"))
                                 .put("success", true)
                                 .toString()
@@ -235,14 +266,10 @@ public final class ServerSocket extends WebSocketServer {
     }
 
     @Override
-    public void onError(WebSocket client, Exception ex) {
-
-    }
+    public void onError(WebSocket client, Exception ex) {}
 
     @Override
-    public void onStart() {
-
-    }
+    public void onStart() {}
 
     private static final class Client {
 

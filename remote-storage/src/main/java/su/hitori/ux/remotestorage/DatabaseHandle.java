@@ -1,7 +1,7 @@
-package su.hitori.ux.storage.remote.server;
+package su.hitori.ux.remotestorage;
 
+import org.json.JSONObject;
 
-import java.util.Map;
 import java.util.UUID;
 
 public interface DatabaseHandle {
@@ -14,6 +14,6 @@ public interface DatabaseHandle {
 
     Identifier completeIdentifier(UUID uuid, UUID gameUuid, String gameName);
 
-    Map<String, Object> viewContainer(UUID container);
+    JSONObject viewContainer(UUID container);
 
 }
