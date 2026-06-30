@@ -141,7 +141,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 }
 
                 RemoteDataContainer remoteDataContainer = dataCache.get(identifier);
-                if(remoteDataContainer == null) return;
+                if(remoteDataContainer == null || remoteDataContainer.isClosed()) return;
 
                 remoteDataContainer.set(UnsafeUtil.cast(dataField), dataField.codec().decode(messageBody.opt("value")));
             }
@@ -282,6 +282,14 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(!isInitialized() || closed) return;
 
         try {
+            for (CompletableFuture<@Nullable Identifier> value : identifierRequests.values()) {
+                value.cancel(true);
+            }
+
+            for (CachedRequest value : requestCache.values()) {
+                value.request().cancel(true);
+            }
+
             clientSocket.closeBlocking();
         }
         catch (Throwable exception) {
@@ -295,6 +303,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             requestedUuidToRequestUuidCache.clear();
             requestedGameUuidToRequestUuidCache.clear();
             requestedGameNameToRequestUuidCache.clear();
+            identifierRequests.clear();
 
             dataCache.clear();
             identifierCacheByUuid.clear();
@@ -429,10 +438,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         Task.runGlobally(() -> {
             if (!future.isDone()) {
                 future.completeExceptionally(new TimeoutException("View container request timed out"));
-                requestCache.remove(requestUuid);
-                if (uuid != null) requestedUuidToRequestUuidCache.remove(uuid);
-                if (gameUuid != null) requestedGameUuidToRequestUuidCache.remove(gameUuid);
-                if (gameName != null) requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase());
+                cleanupRequest(requestUuid, uuid, gameUuid, gameName);
             }
         }, 20L * REQUEST_TIMEOUT_SECONDS);
 
@@ -441,6 +447,13 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(gameName != null) requestedGameNameToRequestUuidCache.put(gameName.toLowerCase(), requestUuid);
 
         return future;
+    }
+
+    private void cleanupRequest(UUID requestUuid, UUID uuid, UUID gameUuid, String gameName) {
+        requestCache.remove(requestUuid);
+        if (uuid != null) requestedUuidToRequestUuidCache.remove(uuid);
+        if (gameUuid != null) requestedGameUuidToRequestUuidCache.remove(gameUuid);
+        if (gameName != null) requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase());
     }
 
     void pushValueAsync(UUID uuid, String field, Object value) {
