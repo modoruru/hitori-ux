@@ -10,9 +10,9 @@ public interface DatabaseHandle {
 
     void set(UUID container, String field, Object value);
 
-    Object get(UUID container, String field);
-
     Identifier completeIdentifier(UUID uuid, UUID gameUuid, String gameName);
+
+    void updateIdentifier(UUID uuid, UUID newGameUuid, String newGameName);
 
     JSONObject viewContainer(UUID container);
 

@@ -125,7 +125,7 @@ public final class ServerSocket extends WebSocketServer {
 
                 Identifier identifier = databaseHandle.completeIdentifier(uuid, null, null);
                 if(identifier == null) {
-                    client.closeConnection(CloseFrame.REFUSE, "requested tracking on unknown container.");
+                    client.closeConnection(CloseFrame.REFUSE, "requested value push to an unknown container.");
                     return;
                 }
 
@@ -199,7 +199,10 @@ public final class ServerSocket extends WebSocketServer {
                     return;
                 }
 
-                if(!databaseHandle.exists(containerUuid)) return;
+                if(!databaseHandle.exists(containerUuid)) {
+                    client.closeConnection(CloseFrame.REFUSE, "requested tracking on unknown container.");
+                    return;
+                }
 
                 boolean trackingStatus = messageBody.optBoolean("tracking_status");
 
