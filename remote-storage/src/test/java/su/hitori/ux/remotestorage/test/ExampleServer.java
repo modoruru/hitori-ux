@@ -1,4 +1,4 @@
-package su.hitori.ux.remotestorage.example;
+package su.hitori.ux.remotestorage.test;
 
 import su.hitori.ux.remotestorage.SQLDatabaseHandle;
 import su.hitori.ux.remotestorage.ServerConfiguration;
@@ -10,7 +10,6 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public final class ExampleServer {
 
-    public static final int port = 8080;
     public static final Map<String, String> users = Map.of(
             "survival_server", "veryCoolPassword123"
     );
@@ -23,7 +22,7 @@ public final class ExampleServer {
     private final SQLDatabaseHandle sqlDatabaseHandle;
     private volatile boolean running;
 
-    public ExampleServer() {
+    public ExampleServer(int port) {
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
         this.serverSocket = new ServerSocket(
                 ServerConfiguration.serverConfiguration(port)
@@ -39,20 +38,12 @@ public final class ExampleServer {
         );
     }
 
-    static void main() {
-        new ExampleServer().start();
-    }
-
     public void start() {
         if(running) return;
 
         sqlDatabaseHandle.connect();
         serverSocket.start();
         running = true;
-
-        while (running) {
-            Thread.onSpinWait();
-        }
     }
 
     public void stop() {
