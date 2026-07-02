@@ -34,7 +34,7 @@ public class SQLDatabaseHandle implements DatabaseHandle {
     public void connect() {
         if(connection != null) return;
         try {
-            connection = DriverManager.getConnection(connectString + ";DB_CLOSE_ON_EXIT=FALSE");
+            connection = DriverManager.getConnection(connectString);
 
             try (Statement index = createStatement(); Statement users = createStatement()) {
                 index.execute("CREATE TABLE IF NOT EXISTS `index` (uuid TEXT PRIMARY KEY, game_uuid TEXT, game_name TEXT)");

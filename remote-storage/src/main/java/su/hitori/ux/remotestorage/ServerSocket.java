@@ -56,7 +56,7 @@ public class ServerSocket extends WebSocketServer {
 
         if(serverConfiguration.verboseLoggingChannel != null)
             serverConfiguration.verboseLoggingChannel.accept(String.format(
-                    "Closed connectin with %s.",
+                    "Closed connection with %s.",
                     wrapper.authorized ? wrapper.user : wrapper.uuid.toString()
             ));
 
