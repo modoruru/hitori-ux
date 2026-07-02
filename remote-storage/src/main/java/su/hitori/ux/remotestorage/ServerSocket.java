@@ -11,14 +11,14 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
-public final class ServerSocket extends WebSocketServer {
+public class ServerSocket extends WebSocketServer {
 
-    private final ServerConfiguration serverConfiguration;
-    private final ExecutorService executorService;
-    private final DatabaseHandle databaseHandle;
+    protected final ServerConfiguration serverConfiguration;
+    protected final ExecutorService executorService;
+    protected final DatabaseHandle databaseHandle;
 
-    private final Map<UUID, Client> clients;
-    private final Map<String, Client> indexByUser;
+    protected final Map<UUID, Client> clients;
+    protected final Map<String, Client> indexByUser;
 
     public ServerSocket(ServerConfiguration serverConfiguration, ExecutorService executorService, DatabaseHandle databaseHandle) {
         super(new InetSocketAddress(serverConfiguration.port));
@@ -37,14 +37,28 @@ public final class ServerSocket extends WebSocketServer {
         clients.put(wrapper.uuid, wrapper);
 
         client.setAttachment(wrapper.uuid);
+
+        if(serverConfiguration.verboseLoggingChannel != null)
+            serverConfiguration.verboseLoggingChannel.accept(String.format(
+                    "Created connection with %s and assigned %s uuid.",
+                    client.getRemoteSocketAddress().getAddress().getHostAddress(),
+                    wrapper.uuid
+            ));
     }
 
     @Override
     public void onClose(WebSocket client, int code, String reason, boolean remote) {
         UUID uuid = client.getAttachment();
         if(uuid == null) return; // tf?
+
         Client wrapper = clients.remove(uuid);
         assert wrapper != null;
+
+        if(serverConfiguration.verboseLoggingChannel != null)
+            serverConfiguration.verboseLoggingChannel.accept(String.format(
+                    "Closed connectin with %s.",
+                    wrapper.authorized ? wrapper.user : wrapper.uuid.toString()
+            ));
 
         if(wrapper.user != null)
             indexByUser.remove(wrapper.user);
@@ -71,22 +85,35 @@ public final class ServerSocket extends WebSocketServer {
         }
 
         Client wrapper = clients.get(uuid);
+        assert wrapper != null;
+
+        if(serverConfiguration.verboseLoggingChannel != null)
+            serverConfiguration.verboseLoggingChannel.accept(String.format(
+                    "Received \"%s\" message from %s.",
+                    type,
+                    wrapper.authorized ? wrapper.user : wrapper.uuid.toString()
+            ));
+
+        handleCompleteMessage(wrapper, type, messageBody);
+    }
+
+    protected void handleCompleteMessage(Client wrapper, String type, JSONObject messageBody) {
         if(!wrapper.authorized) {
             if(!type.equalsIgnoreCase("storage_connect")) {
-                client.closeConnection(CloseFrame.REFUSE, "not authorized");
+                wrapper.socket.closeConnection(CloseFrame.REFUSE, "not authorized");
                 return;
             }
 
             String user = messageBody.optString("user");
             String password = messageBody.optString("password");
             if(user.isEmpty() || password.isEmpty() || indexByUser.get(user) != null) {
-                client.closeConnection(CloseFrame.POLICY_VALIDATION, "wrong credentials");
+                wrapper.socket.closeConnection(CloseFrame.POLICY_VALIDATION, "wrong credentials");
                 return;
             }
 
             String realPassword = serverConfiguration.users.get(user);
             if(realPassword == null || !realPassword.equals(password)) {
-                client.closeConnection(CloseFrame.POLICY_VALIDATION, "wrong credentials");
+                wrapper.socket.closeConnection(CloseFrame.POLICY_VALIDATION, "wrong credentials");
                 return;
             }
 
@@ -100,6 +127,15 @@ public final class ServerSocket extends WebSocketServer {
                             .put("success", true)
                             .toString()
             );
+
+            if(serverConfiguration.verboseLoggingChannel != null) {
+                serverConfiguration.verboseLoggingChannel.accept(String.format(
+                        "Client %s is now authorized under %s username.",
+                        wrapper.uuid.toString(),
+                        wrapper.user
+                ));
+            }
+
             return;
         }
 
@@ -107,25 +143,25 @@ public final class ServerSocket extends WebSocketServer {
             case "storage_data_push" -> {
                 String rawUuid = messageBody.optString("uuid", null);
                 if(rawUuid == null || rawUuid.isEmpty()) {
-                    client.closeConnection(CloseFrame.REFUSE, "missing \"uuid\" field.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "missing \"uuid\" field.");
                     return;
                 }
 
                 UUID containerUuid = parseUuid(rawUuid);
                 if(containerUuid == null) {
-                    client.closeConnection(CloseFrame.REFUSE, "unable to decode uuid.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "unable to decode uuid.");
                     return;
                 }
 
                 String field = messageBody.optString("field", null);
                 if(field == null || field.isEmpty()) {
-                    client.closeConnection(CloseFrame.REFUSE, "missing \"field\" field.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "missing \"field\" field.");
                     return;
                 }
 
-                Identifier identifier = databaseHandle.completeIdentifier(uuid, null, null);
+                Identifier identifier = databaseHandle.completeIdentifier(containerUuid, null, null);
                 if(identifier == null) {
-                    client.closeConnection(CloseFrame.REFUSE, "requested value push to an unknown container.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "requested value push to an unknown container.");
                     return;
                 }
 
@@ -189,18 +225,18 @@ public final class ServerSocket extends WebSocketServer {
             case "tracking" -> {
                 String rawUuid = messageBody.optString("uuid", null);
                 if(rawUuid == null || rawUuid.isEmpty()) {
-                    client.closeConnection(CloseFrame.REFUSE, "missing \"uuid\" field.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "missing \"uuid\" field.");
                     return;
                 }
 
                 UUID containerUuid = parseUuid(rawUuid);
                 if(containerUuid == null) {
-                    client.closeConnection(CloseFrame.REFUSE, "unable to decode uuid.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "unable to decode uuid.");
                     return;
                 }
 
                 if(!databaseHandle.exists(containerUuid)) {
-                    client.closeConnection(CloseFrame.REFUSE, "requested tracking on unknown container.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "requested tracking on unknown container.");
                     return;
                 }
 
@@ -212,7 +248,7 @@ public final class ServerSocket extends WebSocketServer {
             case "view_container" -> {
                 JSONObject identifierBody = messageBody.optJSONObject("identifier");
                 if(identifierBody == null) {
-                    client.closeConnection(CloseFrame.REFUSE, "missing \"identifier\" field.");
+                    wrapper.socket.closeConnection(CloseFrame.REFUSE, "missing \"identifier\" field.");
                     return;
                 }
 
@@ -253,7 +289,7 @@ public final class ServerSocket extends WebSocketServer {
         }
     }
 
-    private static UUID parseUuid(String string) {
+    public static UUID parseUuid(String string) {
         if(string == null || string.isEmpty()) return null;
 
         try {
@@ -264,25 +300,36 @@ public final class ServerSocket extends WebSocketServer {
         }
     }
 
-    private void sendAsync(Client wrapper, String message) {
+    protected void sendAsync(Client wrapper, String message) {
+        if(serverConfiguration.verboseLoggingChannel != null)
+            serverConfiguration.verboseLoggingChannel.accept(String.format(
+                    "Sent message to %s.",
+                    wrapper.authorized ? wrapper.user : wrapper.uuid.toString()
+            ));
+
         executorService.execute(() -> wrapper.socket.send(message));
     }
 
     @Override
-    public void onError(WebSocket client, Exception ex) {}
+    public void onError(WebSocket client, Exception ex) {
+
+    }
 
     @Override
-    public void onStart() {}
+    public void onStart() {
+        if(serverConfiguration.verboseLoggingChannel != null)
+            serverConfiguration.verboseLoggingChannel.accept("Socket successfully started and ready to accept connections.");
+    }
 
-    private static final class Client {
+    protected static final class Client {
 
-        final WebSocket socket;
-        final UUID uuid;
+        protected final WebSocket socket;
+        protected final UUID uuid;
 
-        final Set<UUID> tracking;
+        protected final Set<UUID> tracking;
 
-        String user;
-        boolean authorized;
+        protected String user;
+        protected boolean authorized;
 
         Client(WebSocket socket) {
             this.socket = socket;

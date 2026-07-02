@@ -155,7 +155,15 @@ public class SQLDatabaseHandle implements DatabaseHandle {
 
     @Override
     public void updateIdentifier(UUID uuid, UUID newGameUuid, String newGameName) {
-        // todo
+        try (PreparedStatement statement = prepareStatement("UPDATE `index` SET game_uuid = ?, game_name = ? WHERE uuid = ?")) {
+            statement.setString(1, newGameUuid.toString());
+            statement.setString(2, newGameName);
+            statement.setString(3, uuid.toString());
+            statement.execute();
+        }
+        catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
