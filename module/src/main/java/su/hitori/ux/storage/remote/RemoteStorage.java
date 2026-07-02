@@ -11,6 +11,7 @@ import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.storage.DataField;
 import su.hitori.ux.storage.Identifier;
 import su.hitori.ux.storage.Storage;
+import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 
 import java.net.URI;
 import java.util.*;
@@ -143,6 +144,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 RemoteDataContainer remoteDataContainer = dataCache.get(identifier);
                 if(remoteDataContainer == null || remoteDataContainer.isClosed()) return;
 
+                LOGGER.warning("Received tracking for " + remoteDataContainer.identifier().toString() + " for field: " + field);
+
                 remoteDataContainer.set(UnsafeUtil.cast(dataField), dataField.codec().decode(messageBody.opt("value")));
             }
             case "view_container" -> {
@@ -189,11 +192,13 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                         this,
                         identifier,
                         (SERVER_DATA_IDENTIFIER.equals(identifier) ? serverDataScheme : userDataScheme).values(),
-                        request.cache()
+                        !request.cache()
                 );
 
                 JSONObject containerBody = messageBody.optJSONObject("container");
                 if(containerBody != null) container.initialize(containerBody);
+
+                LOGGER.warning(identifier.toString() + " is now cached and tracked");
 
                 dataCache.put(identifier, container);
                 identifierCacheByUuid.put(identifier.uuid(), identifier);
@@ -201,6 +206,10 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 identifierCacheByGameName.put(identifier.gameName().toLowerCase(), identifier);
 
                 trackingStatus(identifier.uuid(), true);
+
+                Player player = getPlayerByIdentifier(identifier);
+                if(player != null)
+                    Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 0L);
 
                 request.request().complete(container);
             }
@@ -417,8 +426,10 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
         RemoteDataContainer cachedData = findCachedData(uuid, gameUuid, gameName);
         if(cachedData != null) {
-            if(cachedData.temporary && cache)
+            if(cachedData.temporary && cache) {
                 cachedData.temporary = false;
+                LOGGER.warning(cachedData.identifier().toString() + " became permanent.");
+            }
             return CompletableFuture.completedFuture(cachedData);
         }
 

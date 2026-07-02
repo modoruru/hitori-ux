@@ -86,17 +86,15 @@ public class SQLDatabaseHandle implements DatabaseHandle {
 
         json.put(field, value);
 
-        saveContainer(container, json, exists(container));
+        saveContainer(container, json);
     }
 
-    private void saveContainer(UUID container, JSONObject body, boolean fresh) {
+    private void saveContainer(UUID container, JSONObject body) {
         try (PreparedStatement statement = prepareStatement(
-                fresh
-                        ? "INSERT INTO users (uuid, body) VALUES (?, ?)"
-                        : "UPDATE users SET body = ? WHERE uuid = ?"
+                "UPDATE users SET body = ? WHERE uuid = ?"
         )) {
-            statement.setString(fresh ? 2 : 1, body.toString());
-            statement.setString(fresh ? 1 : 2, container.toString());
+            statement.setString(1, body.toString());
+            statement.setString(2, container.toString());
             statement.execute();
         }
         catch (SQLException e) {
@@ -125,20 +123,39 @@ public class SQLDatabaseHandle implements DatabaseHandle {
             statement.setString(1, uuidPresent ? uuid.toString() : gameName);
             ResultSet set = statement.executeQuery();
             if(!set.next()) {
-                if(gameUuid == null && gameName == null) return null;
+                if(gameUuid == null || gameName == null) return null;
 
-                Identifier identifier = new Identifier(uuid, gameUuid, gameName);
+                Identifier identifier = new Identifier(
+                        uuid == null
+                                ? (gameName.isEmpty()
+                                   ? new UUID(0, 0)
+                                   : UUID.randomUUID())
+                                : uuid,
+                        gameUuid,
+                        gameName
+                );
                 executorService.execute(() -> {
-                    try (PreparedStatement statement1 = prepareStatement("INSERT INTO `index` (uuid, game_uuid, game_name) VALUES (?, ?, ?)")) {
-                        statement1.setString(1, identifier.uuid().toString());
-                        statement1.setString(2, identifier.gameUuid().toString());
-                        statement1.setString(3, identifier.gameName());
-                        statement1.execute();
+                    try (PreparedStatement insertIdentifier = prepareStatement("INSERT INTO `index` (uuid, game_uuid, game_name) VALUES (?, ?, ?)")) {
+                        insertIdentifier.setString(1, identifier.uuid().toString());
+                        insertIdentifier.setString(2, identifier.gameUuid().toString());
+                        insertIdentifier.setString(3, identifier.gameName());
+                        insertIdentifier.execute();
                     }
                     catch (SQLException e) {
                         throw new RuntimeException(e);
                     }
                 });
+
+                // we should wait for this to finish so viewContainer request will not fail
+                try (PreparedStatement insertContainer = prepareStatement("INSERT INTO users (uuid, body) VALUES (?, ?)")) {
+                    insertContainer.setString(1, identifier.uuid().toString());
+                    insertContainer.setString(2, "{}");
+                    insertContainer.execute();
+                }
+                catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+
                 return identifier;
             }
 

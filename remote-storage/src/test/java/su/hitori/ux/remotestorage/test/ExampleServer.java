@@ -38,6 +38,15 @@ public final class ExampleServer {
         );
     }
 
+    static void main() {
+        ExampleServer exampleServer = new ExampleServer(8080);
+        exampleServer.start();
+
+        while(exampleServer.running) {
+            Thread.onSpinWait();
+        }
+    }
+
     public void start() {
         if(running) return;
 

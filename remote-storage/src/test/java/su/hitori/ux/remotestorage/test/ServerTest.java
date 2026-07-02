@@ -3,6 +3,7 @@ package su.hitori.ux.remotestorage.test;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -31,6 +32,7 @@ public final class ServerTest {
         }
 
         server.stop();
+        new File(ExampleServer.databaseFile).delete();
     }
 
     public static int getAvailablePort() throws InterruptedException {
