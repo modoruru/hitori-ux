@@ -16,7 +16,7 @@ dependencies {
 extensions.configure<PublishingExtension> {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "hitori-ux_remote-storage"
+            artifactId = "remote-storage"
 
             artifact(tasks.named("jar"))
             artifact(tasks.named("sourcesJar"))

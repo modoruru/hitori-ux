@@ -42,8 +42,8 @@ Latest version: [![](https://jitpack.io/v/modoruru/hitori-ux.svg)](https://jitpa
 
 ```xml
 	<dependency>
-	    <groupId>com.github.modoruru</groupId>
-	    <artifactId>hitori-ux</artifactId>
+	    <groupId>com.github.modoruru.hitori-ux</groupId>
+	    <artifactId>module</artifactId>
 	    <version>version</version>
 	</dependency>
 ```
@@ -61,7 +61,7 @@ repositories {
 ```groovy
 dependencies {
     // ...
-    implementation 'com.github.modoruru:hitori-ux:version'
+    implementation 'com.github.modoruru.hitori-ux:module:version'
 }
 ```
 </details>

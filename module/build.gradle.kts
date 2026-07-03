@@ -41,7 +41,7 @@ tasks {
 extensions.configure<PublishingExtension> {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "hitori-ux"
+            artifactId = "module"
 
             artifact(tasks.named("shadowJar"))
             artifact(tasks.named("sourcesJar"))
