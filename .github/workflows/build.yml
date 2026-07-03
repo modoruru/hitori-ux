@@ -27,6 +27,9 @@ jobs:
       - name: Change wrapper permissions
         run: chmod +x ./gradlew
 
+      - name: Run unit testing
+        run: ./gradlew test
+
       - name: Build with Gradle Wrapper
         run: ./gradlew build
 
@@ -34,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artifact
-          path: build/libs/ux-*.jar
+          path: module/build/libs/ux-*.jar
           retention-days: 3
