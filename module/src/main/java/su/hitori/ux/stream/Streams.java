@@ -38,8 +38,6 @@ public final class Streams {
         for (String allowedDomain : UXConfiguration.I.streams.allowedDomains) {
             allowedDomains.add(allowedDomain.toLowerCase());
         }
-
-        uxModule.storage().getServerDataContainer().thenAccept(this::load);
     }
 
     public void load() {

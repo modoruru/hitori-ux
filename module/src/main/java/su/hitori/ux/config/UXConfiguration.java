@@ -304,6 +304,13 @@ public final class UXConfiguration extends Configuration {
         public static final class RemoteImplementation {
             @Comment(value = {@CommentValue(" RemoteStorage does not guarantee data scheme synchronization between servers. This means that one server on the network may have different data fields than another. If an update is received on this server for a field that does not exist, a warning will be printed.")})
             public boolean nonExistingFieldUpdateWarning = true;
+
+            @Comment(value = {@CommentValue(" Determines how many times module will attempt to reconnect after disconnection. If all attempts are failed, module will lock the server (non of the players can join). To unlock it, restart the server or reload the module.")})
+            public int reconnectAttempts = 3;
+
+            @Comment(value = {@CommentValue(" Time in seconds between reconnection attempts.")})
+            public int reconnectAttemptDelay = 5;
+
             public String address = "localhost:80";
             public String user = "root";
             public String password = "root";

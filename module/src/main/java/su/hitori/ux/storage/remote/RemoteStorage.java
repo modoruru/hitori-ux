@@ -1,5 +1,6 @@
 package su.hitori.ux.storage.remote;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -15,10 +16,7 @@ import su.hitori.ux.storage.def.AsyncPlayerSynchronizationEvent;
 
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 public class RemoteStorage implements Storage<RemoteDataContainer> {
@@ -33,7 +31,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
     private static final Logger LOGGER = LoggerFactory.instance().create(RemoteStorage.class);
 
-    protected final ExecutorService executorService;
+    protected final ScheduledExecutorService executorService;
     protected final ClientSocket clientSocket;
     protected final String user;
     protected final String password;
@@ -53,13 +51,16 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     final Map<String, DataField<?>> serverDataScheme;
 
     private boolean syncAllPlayers;
-    private boolean initialized;
-    private boolean closed;
+    private ConnectionState state = ConnectionState.NEVER_OPENED;
+    private int connectionAttempts;
+    private ScheduledFuture<Boolean> delayedConnectionAttempt;
+    private Thread delayedConnectionThread;
+
     private Task removeTemporaryTask;
 
-    public RemoteStorage(ExecutorService executorService, URI uri, String user, String password) {
+    public RemoteStorage(ScheduledExecutorService executorService, URI uri, String user, String password) {
         this.executorService = executorService;
-        this.clientSocket = new ClientSocket(uri, this::handleMessage);
+        this.clientSocket = new ClientSocket(uri, this, this::handleMessage);
         this.user = user;
         this.password = password;
 
@@ -84,42 +85,50 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     protected void handleMessage(JSONObject messageBody) {
         switch (messageBody.optString("type", "").toLowerCase()) {
             case "storage_connect" -> {
-                if(initialized || closed) break;
+                if(state != ConnectionState.OPENED) break;
 
                 boolean success = messageBody.optBoolean("success", false);
                 if(success) {
-                    initialized = true;
                     LOGGER.info("RemoteStorage initialized!");
 
-                    removeTemporaryTask = Task.runTaskTimerGlobally(() -> executorService.execute(() -> {
-                        if(!initialized || closed) return;
+                    if(removeTemporaryTask == null) {
+                        removeTemporaryTask = Task.runTaskTimerGlobally(() -> executorService.execute(() -> {
+                            if(state != ConnectionState.AUTHORIZED) return;
 
-                        Set<Identifier> toClose = new HashSet<>();
-                        for (RemoteDataContainer container : dataCache.values()) {
-                            if(container.temporary && System.currentTimeMillis() > (container.lastAccess + RemoteDataContainer.RETAINING_TIME_SECONDS * 1000L)) {
-                                toClose.add(container.identifier());
+                            Set<Identifier> toClose = new HashSet<>();
+                            for (RemoteDataContainer container : dataCache.values()) {
+                                if(container.temporary && System.currentTimeMillis() > (container.lastAccess + RemoteDataContainer.RETAINING_TIME_SECONDS * 1000L)) {
+                                    toClose.add(container.identifier());
+                                }
                             }
-                        }
-                        toClose.forEach(this::quit);
+                            toClose.forEach(this::quit);
 
-                    }), 0L, 20L);
+                        }), 1L, 20L);
+                    }
 
-                    openFuture.complete(null);
+                    if(state != ConnectionState.RECONNECTING)
+                        openFuture.complete(null);
 
-                    if(syncAllPlayers)
+                    state = ConnectionState.AUTHORIZED;
+
+                    if(syncAllPlayers) {
                         Bukkit.getOnlinePlayers().forEach(this::syncPlayer);
+                        syncAllPlayers = false;
+                    }
                 }
                 else {
-                    LOGGER.warning(String.format(
-                            "Unable to authenticate RemoteStorage server: %s",
+                    printLockMessage(-1, String.format(
+                            "Unable to authenticate to RemoteStorage server: %s",
                             messageBody.optString("error", "no error present")
-                    ));
+                    ), connectionAttempts + 1);
+
                     openFuture.completeExceptionally(new IllegalStateException("Unable to authenticate to RemoteStorage server."));
-                    closed = true;
+                    state = ConnectionState.CLOSED;
+                    internalClose();
                 }
             }
             case "tracking" -> {
-                if(!initialized || closed) break;
+                if(state != ConnectionState.AUTHORIZED) break;
 
                 JSONObject identifierBody = messageBody.optJSONObject("identifier");
                 if(identifierBody == null) {
@@ -146,10 +155,10 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
                 LOGGER.warning("Received tracking for " + remoteDataContainer.identifier().toString() + " for field: " + field);
 
-                remoteDataContainer.set(UnsafeUtil.cast(dataField), dataField.codec().decode(messageBody.opt("value")));
+                remoteDataContainer.setDirect(UnsafeUtil.cast(dataField), dataField.codec().decode(messageBody.opt("value")));
             }
             case "view_container" -> {
-                if(!initialized || closed) break;
+                if(state != ConnectionState.AUTHORIZED) break;
 
                 String rawRequestUuid = messageBody.optString("request_uuid");
                 if(rawRequestUuid == null || rawRequestUuid.isEmpty())
@@ -198,7 +207,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 JSONObject containerBody = messageBody.optJSONObject("container");
                 if(containerBody != null) container.initialize(containerBody);
 
-                LOGGER.warning(identifier.toString() + " is now cached and tracked");
+                LOGGER.info(identifier.gameName() + " container is now cached and tracked");
 
                 dataCache.put(identifier, container);
                 identifierCacheByUuid.put(identifier.uuid(), identifier);
@@ -247,7 +256,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
     @Override
     public boolean isInitialized() {
-        return openFuture.isDone();
+        return state == ConnectionState.AUTHORIZED;
     }
 
     @Override
@@ -256,41 +265,78 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
         this.syncAllPlayers = syncAllPlayers;
 
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                if(!clientSocket.connectBlocking()) {
-                    LOGGER.warning("Unable to connect to RemoteStorage.");
-                    throw new IllegalStateException();
-                }
-                LOGGER.info("Connected to endpoint");
-
-                clientSocket.send(
-                        new JSONObject()
-                                .put("type", "storage_connect")
-                                .put("user", user)
-                                .put("password", password)
-                                .toString()
-                );
-                LOGGER.info("Sent connection packet");
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            return null;
-        }, executorService).whenComplete((_, error) -> {
-            if(error != null) {
-                closed = true;
-                openFuture.complete(null);
-            }
-        });
+        executorService.execute(() -> connect(false));
     }
 
-    @Override
-    public void close() {
-        if(!isInitialized() || closed) return;
-
+    boolean connect(boolean reconnection) {
         try {
+            if((reconnection ? !clientSocket.reconnectBlocking() : !clientSocket.connectBlocking())) {
+                connectionClosed(-1, "Unable to connect", false);
+                return false;
+            }
+            LOGGER.info("Connected to the endpoint");
+
+            state = ConnectionState.OPENED;
+
+            clientSocket.send(
+                    new JSONObject()
+                            .put("type", "storage_connect")
+                            .put("user", user)
+                            .put("password", password)
+                            .toString()
+            );
+            LOGGER.info("Sent connection packet");
+
+            if(!isInitialized()) openFuture.complete(null);
+            connectionAttempts = 0;
+
+            return true;
+        }
+        catch (Exception e) {
+            return false;
+        }
+    }
+
+    void connectionClosed(int code, String reason, boolean immediate) {
+        var config = UXConfiguration.I.storage.remoteImplementation;
+        int allowedAttempts = config.reconnectAttempts;
+        if(allowedAttempts <= 0 || connectionAttempts >= allowedAttempts) {
+            state = ConnectionState.CLOSED;
+            printLockMessage(code, reason, connectionAttempts + 1);
+            internalClose();
+            return;
+        }
+
+        state = ConnectionState.RECONNECTING;
+        syncAllPlayers = true;
+        delayedConnectionThread = null;
+
+        if(!immediate && ++connectionAttempts > 1) {
+            delayedConnectionAttempt = executorService.schedule(() -> {
+                delayedConnectionThread = Thread.currentThread();
+                return connect(true);
+            }, config.reconnectAttemptDelay, TimeUnit.SECONDS);
+            return;
+        }
+
+        executorService.execute(() -> connect(true));
+    }
+
+    private static void printLockMessage(int code, String reason, int attempts) {
+        final String separator = "========================================";
+        LOGGER.severe(separator);
+        LOGGER.severe("The connection to the storage could not be established. Server is now locked - non of the players can join.");
+        LOGGER.severe("Restart the module or, what better, restart the server.");
+        LOGGER.severe("Below is the most detailed information the module can provide about why the connection was lost.");
+        LOGGER.severe(String.format("WebSocket close code - %s, reason - \"%s\", connection attempts: %s", code, reason, attempts));
+        LOGGER.severe(separator);
+    }
+
+    private void internalClose() {
+        try {
+            if(delayedConnectionAttempt != null && delayedConnectionThread != Thread.currentThread())
+                delayedConnectionAttempt.cancel(true);
+
             for (CompletableFuture<@Nullable Identifier> value : identifierRequests.values()) {
                 value.cancel(true);
             }
@@ -299,7 +345,14 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 value.request().cancel(true);
             }
 
-            clientSocket.closeBlocking();
+            for (RemoteDataContainer value : dataCache.values()) {
+                value.close(false);
+                Player player = getPlayerByIdentifier(value.identifier());
+                if(player != null) player.kick(Component.text("Internal error"));
+            }
+
+            if(!clientSocket.isClosed() && !clientSocket.isClosing())
+                clientSocket.closeBlocking();
         }
         catch (Throwable exception) {
             LOGGER.severe(LoggerUtil.exceptionToString(exception));
@@ -319,8 +372,15 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             identifierCacheByGameUuid.clear();
             identifierCacheByGameName.clear();
 
-            closed = true;
+            delayedConnectionAttempt = null;
         }
+    }
+
+    @Override
+    public void close() {
+        if(state == ConnectionState.NEVER_OPENED || state == ConnectionState.CLOSED) return;
+        state = ConnectionState.CLOSED;
+        internalClose();
     }
 
     void syncPlayer(Player player) {
@@ -351,6 +411,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(container == null) return;
         container.temporary = true;
         container.lastAccess = System.currentTimeMillis();
+
+        LOGGER.info(identifier.gameName() + " container is now marked as temporary.");
     }
 
     void quit(Identifier identifier) {
@@ -361,11 +423,13 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         identifierCacheByGameName.remove(identifier.gameName().toLowerCase());
 
         if(container == null) return;
-        container.close();
+        container.close(true);
+
+        LOGGER.info(identifier.gameName() + " container was closed.");
     }
 
     void trackingStatus(UUID uuid, boolean status) {
-        if(closed || !initialized) return;
+        if(state != ConnectionState.AUTHORIZED) return;
 
         executorService.execute(() -> clientSocket.send(
                 new JSONObject()
@@ -421,14 +485,14 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     }
 
     public CompletableFuture<RemoteDataContainer> getUserDataContainer(UUID uuid, UUID gameUuid, String gameName, boolean requestIfNotCached, boolean cache) {
-        if(closed || (uuid == null && gameUuid == null && gameName == null))
+        if(state == ConnectionState.CLOSED  || (uuid == null && gameUuid == null && gameName == null))
             return CompletableFuture.completedFuture(null);
 
         RemoteDataContainer cachedData = findCachedData(uuid, gameUuid, gameName);
         if(cachedData != null) {
             if(cachedData.temporary && cache) {
                 cachedData.temporary = false;
-                LOGGER.warning(cachedData.identifier().toString() + " became permanent.");
+                LOGGER.info(cachedData.identifier().toString() + " became permanent.");
             }
             return CompletableFuture.completedFuture(cachedData);
         }

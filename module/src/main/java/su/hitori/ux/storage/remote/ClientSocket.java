@@ -9,10 +9,12 @@ import java.net.URI;
 
 public final class ClientSocket extends WebSocketClient {
 
+    private final RemoteStorage remoteStorage;
     private final MessageHandler messageHandler;
 
-    public ClientSocket(URI serverUri, MessageHandler messageHandler) {
+    public ClientSocket(URI serverUri, RemoteStorage remoteStorage, MessageHandler messageHandler) {
         super(serverUri);
+        this.remoteStorage = remoteStorage;
         this.messageHandler = messageHandler;
     }
 
@@ -37,7 +39,8 @@ public final class ClientSocket extends WebSocketClient {
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        System.out.printf("Connection closed. code: %s, reason: \"%s\"\n", code, reason);
+        if(remote)
+            remoteStorage.connectionClosed(code, reason, true);
     }
 
     @Override

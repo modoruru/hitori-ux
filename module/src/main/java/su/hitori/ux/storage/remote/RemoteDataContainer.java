@@ -81,6 +81,10 @@ public final class RemoteDataContainer implements DataContainer {
         return UnsafeUtil.cast(values.get(field));
     }
 
+    void setDirect(DataField<Object> field, @Nullable Object value) {
+        values.put(field, value);
+    }
+
     @Override
     public <E> void set(DataField<E> field, @Nullable E value) {
         if(closed) throw new IllegalStateException("DataContainer is closed");
@@ -93,11 +97,13 @@ public final class RemoteDataContainer implements DataContainer {
         remoteStorage.pushValueAsync(identifier.uuid(), field.name(), value);
     }
 
-    void close() {
+    void close(boolean sendTrackingStatus) {
         if(closed) return;
 
         values.clear();
-        remoteStorage.trackingStatus(identifier.uuid(), false);
+
+        if(sendTrackingStatus)
+            remoteStorage.trackingStatus(identifier.uuid(), false);
 
         closed = true;
     }
