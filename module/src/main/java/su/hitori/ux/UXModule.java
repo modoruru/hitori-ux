@@ -20,6 +20,7 @@ import su.hitori.ux.event.Events;
 import su.hitori.ux.nametag.NameTags;
 import su.hitori.ux.nametag.NameTagsListener;
 import su.hitori.ux.notification.Notifications;
+import su.hitori.ux.pronouns.PronounsInfluencedText;
 import su.hitori.ux.storage.DataContainer;
 import su.hitori.ux.storage.Storage;
 import su.hitori.ux.storage.def.DefaultStorageImpl;
@@ -162,8 +163,8 @@ public final class UXModule extends Module {
             nameTags.start();
         }
 
-        if(config.chat.gender.enabled)
-            context.commands().register(new GenderCommand(this));
+        if(config.chat.pronouns.enabled)
+            context.commands().register(new PronounsCommand(this));
 
         context.commands().register(
                 new EventCommand(events),
@@ -175,7 +176,8 @@ public final class UXModule extends Module {
         events.load();
 
         storage.addFieldsToUserScheme(
-                GenderInfluencedText.GENDER_FIELD,
+                PronounsInfluencedText.GENDER_FIELD,
+                PronounsInfluencedText.PRONOUNS_FIELD,
                 Chat.CHAT_IGNORING_FIELD,
                 Chat.DM_IGNORING_FIELD,
                 SpyCommand.SPYING_FIELD,
