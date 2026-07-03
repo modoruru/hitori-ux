@@ -113,6 +113,8 @@ public final class UXModule extends Module {
                 yield 0;
             }
             case "remote" -> {
+                LOGGER.warning("Remote storage is currently in an unstable state. It's still in development and not production ready.");
+
                 var remoteImplementationConfig = storageConfig.remoteImplementation;
                 RemoteStorage remoteStorage = new RemoteStorage(
                         executorService,

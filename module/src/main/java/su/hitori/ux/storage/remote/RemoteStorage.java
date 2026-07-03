@@ -152,7 +152,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 RemoteDataContainer remoteDataContainer = dataCache.get(identifier);
                 if(remoteDataContainer == null || remoteDataContainer.isClosed()) return;
 
-                LOGGER.warning("Received tracking for " + remoteDataContainer.identifier().toString() + " for field: " + field);
+                if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+                    LOGGER.info("Received tracking for " + remoteDataContainer.identifier().toString() + " for field: " + field);
 
                 remoteDataContainer.setDirect(UnsafeUtil.cast(dataField), dataField.codec().decode(messageBody.opt("value")));
             }
@@ -206,7 +207,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 JSONObject containerBody = messageBody.optJSONObject("container");
                 if(containerBody != null) container.initialize(containerBody);
 
-                LOGGER.info(identifier.gameName() + " container is now cached and tracked");
+                if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+                    LOGGER.info(identifier.gameName() + " container is now cached and tracked");
 
                 dataCache.put(identifier, container);
                 identifierCacheByUuid.put(identifier.uuid(), identifier);
@@ -260,7 +262,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
     @Override
     public void open(boolean syncAllPlayers) {
-        if(isInitialized()) return;
+        if(state != ConnectionState.NEVER_OPENED) return;
 
         this.syncAllPlayers = syncAllPlayers;
 
@@ -307,7 +309,9 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
         state = ConnectionState.RECONNECTING;
 
-        openFuture.completeExceptionally(new TimeoutException());
+        if (!openFuture.isDone())
+            openFuture.completeExceptionally(new TimeoutException());
+
         openFuture = new CompletableFuture<>();
 
         for (RemoteDataContainer container : dataCache.values()) {
@@ -355,7 +359,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             for (RemoteDataContainer value : dataCache.values()) {
                 value.close(false);
                 Player player = getPlayerByIdentifier(value.identifier());
-                if(player != null) player.kick(Component.text("Internal error"));
+                if(player != null) Task.ensureSync(() -> player.kick(Component.text("Internal error")));
             }
 
             if(!clientSocket.isClosed() && !clientSocket.isClosing())
@@ -419,7 +423,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         container.temporary = true;
         container.lastAccess = System.currentTimeMillis();
 
-        LOGGER.info(identifier.gameName() + " container is now marked as temporary.");
+        if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+            LOGGER.info(identifier.gameName() + " container is now marked as temporary.");
     }
 
     void quit(Identifier identifier) {
@@ -432,7 +437,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(container == null) return;
         container.close(true);
 
-        LOGGER.info(identifier.gameName() + " container was closed.");
+        if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+            LOGGER.info(identifier.gameName() + " container was closed.");
     }
 
     void trackingStatus(UUID uuid, boolean status) {
@@ -499,7 +505,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(cachedData != null) {
             if(cachedData.temporary && cache) {
                 cachedData.temporary = false;
-                LOGGER.info(cachedData.identifier().toString() + " became permanent.");
+                if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+                    LOGGER.info(cachedData.identifier().toString() + " became permanent.");
             }
             return CompletableFuture.completedFuture(cachedData);
         }
@@ -510,10 +517,8 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(!requestIfNotCached) return CompletableFuture.completedFuture(null);
 
         UUID requestUuid = UUID.randomUUID();
-        CompletableFuture<RemoteDataContainer> future = openFuture.thenCompose(_ -> {
-            executorService.execute(() -> createViewRequest(uuid, gameUuid, gameName, requestUuid));
-            return new CompletableFuture<>();
-        });
+        openFuture.thenRun(() -> createViewRequest(uuid, gameUuid, gameName, requestUuid));
+        CompletableFuture<RemoteDataContainer> future = new CompletableFuture<>();
 
         requestCache.put(requestUuid, new CachedRequest(future, cache, uuid, gameUuid, gameName));
 

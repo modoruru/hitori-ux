@@ -302,6 +302,8 @@ public final class UXConfiguration extends Configuration {
         public RemoteImplementation remoteImplementation = new RemoteImplementation();
 
         public static final class RemoteImplementation {
+            public boolean verboseLogging = true;
+
             @Comment(value = {@CommentValue(" RemoteStorage does not guarantee data scheme synchronization between servers. This means that one server on the network may have different data fields than another. If an update is received on this server for a field that does not exist, a warning will be printed.")})
             public boolean nonExistingFieldUpdateWarning = true;
 
