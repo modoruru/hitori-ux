@@ -311,8 +311,8 @@ public class ServerSocket extends WebSocketServer {
     }
 
     @Override
-    public void onError(WebSocket client, Exception ex) {
-
+    public void onError(WebSocket client, Exception exception) {
+        exception.printStackTrace();
     }
 
     @Override

@@ -42,9 +42,15 @@ public final class ExampleServer {
         ExampleServer exampleServer = new ExampleServer(8080);
         exampleServer.start();
 
+        long start = System.currentTimeMillis();
         while(exampleServer.running) {
             Thread.onSpinWait();
+
+            if(System.currentTimeMillis() > start + 60_000L) break;
         }
+
+        exampleServer.stop();
+        System.exit(0);
     }
 
     public void start() {

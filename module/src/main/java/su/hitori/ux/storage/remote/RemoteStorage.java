@@ -45,7 +45,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     private final Map<UUID, Identifier> identifierCacheByUuid, identifierCacheByGameUuid;
     private final Map<String, Identifier> identifierCacheByGameName;
 
-    private final CompletableFuture<Void> openFuture;
+    private CompletableFuture<Void> openFuture;
 
     final Map<String, DataField<?>> userDataScheme;
     final Map<String, DataField<?>> serverDataScheme;
@@ -106,8 +106,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                         }), 1L, 20L);
                     }
 
-                    if(state != ConnectionState.RECONNECTING)
-                        openFuture.complete(null);
+                    openFuture.complete(null);
 
                     state = ConnectionState.AUTHORIZED;
 
@@ -287,7 +286,6 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             );
             LOGGER.info("Sent connection packet");
 
-            if(!isInitialized()) openFuture.complete(null);
             connectionAttempts = 0;
 
             return true;
@@ -308,6 +306,15 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         }
 
         state = ConnectionState.RECONNECTING;
+
+        openFuture.completeExceptionally(new TimeoutException());
+        openFuture = new CompletableFuture<>();
+
+        for (RemoteDataContainer container : dataCache.values()) {
+            container.close(false);
+        }
+        dataCache.clear();
+
         syncAllPlayers = true;
         delayedConnectionThread = null;
 
@@ -485,7 +492,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     }
 
     public CompletableFuture<RemoteDataContainer> getUserDataContainer(UUID uuid, UUID gameUuid, String gameName, boolean requestIfNotCached, boolean cache) {
-        if(state == ConnectionState.CLOSED  || (uuid == null && gameUuid == null && gameName == null))
+        if(state == ConnectionState.CLOSED || (uuid == null && gameUuid == null && gameName == null))
             return CompletableFuture.completedFuture(null);
 
         RemoteDataContainer cachedData = findCachedData(uuid, gameUuid, gameName);
