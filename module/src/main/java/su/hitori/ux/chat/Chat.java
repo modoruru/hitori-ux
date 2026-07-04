@@ -224,7 +224,7 @@ public final class Chat {
         var chatConfig = UXConfiguration.I.chat;
 
         LinkedHashSet<FormatCode> codeBuffer = new LinkedHashSet<>();
-        if(chatConfig.colorFormatting && DefaultPermission.CHAT_FORMATTING.hasPermission(senderAsPlayer)) {
+        if(chatConfig.colorFormatting && senderAsPlayer != null && DefaultPermission.CHAT_FORMATTING.hasPermission(senderAsPlayer)) {
             int index;
             int belowLimit = - 1;
             while ((index = builder.indexOf("&")) != -1 && index > belowLimit) {
