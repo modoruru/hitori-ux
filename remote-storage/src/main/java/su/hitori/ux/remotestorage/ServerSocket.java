@@ -324,13 +324,13 @@ public class ServerSocket extends WebSocketServer {
 
     protected static final class Client {
 
-        protected final WebSocket socket;
-        protected final UUID uuid;
+        public final WebSocket socket;
+        public final UUID uuid;
 
-        protected final Set<UUID> tracking;
+        public final Set<UUID> tracking;
 
-        protected String user;
-        protected boolean authorized;
+        public String user;
+        public boolean authorized;
 
         Client(WebSocket socket) {
             this.socket = socket;
