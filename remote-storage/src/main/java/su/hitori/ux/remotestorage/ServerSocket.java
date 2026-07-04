@@ -79,7 +79,7 @@ public class ServerSocket extends WebSocketServer {
         }
 
         String type = messageBody.optString("type", null);
-        if(type == null) {
+        if(type == null || type.isEmpty()) {
             client.closeConnection(CloseFrame.REFUSE, "missing \"type\" field.");
             return;
         }
@@ -286,6 +286,7 @@ public class ServerSocket extends WebSocketServer {
                                 .toString()
                 );
             }
+            default -> {}
         }
     }
 
