@@ -9,6 +9,7 @@ import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.registry.RegistryAccess;
 import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
+import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.Sound;
 import su.hitori.ux.UXModule;
@@ -86,7 +87,7 @@ public final class Chat {
     private final Map<Player, UUID> playerToTheirSharedInventory;
 
     final Map<String, String> lastDM;
-    final Map<Player, Set<UUID>> seenJoinOf;
+    final Map<UUID, Set<UUID>> seenJoinOf;
 
     public Chat(UXModule uxModule) {
         this.uxModule = uxModule;
@@ -104,13 +105,16 @@ public final class Chat {
     }
 
     public void sendHello(Player from, Player joined) {
-        uxModule.executorService().execute(() -> sendHelloInternal(from, joined));
+        uxModule.storage().getUserDataContainer(from).thenAccept(container -> {
+            if(container == null) return;
+            Task.ensureAsync(() -> sendHelloInternal(container, joined));
+        });
     }
 
-    private void sendHelloInternal(Player from, Player joined) {
+    private void sendHelloInternal(DataContainer from, Player joined) {
         if(from == joined) return;
 
-        Set<UUID> seenJoin = seenJoinOf.get(from);
+        Set<UUID> seenJoin = seenJoinOf.get(from.identifier().gameUuid());
         if(seenJoin == null || !seenJoin.remove(joined.getUniqueId())) return;
 
         AsyncJoinReactionEvent event = new AsyncJoinReactionEvent(
@@ -159,12 +163,14 @@ public final class Chat {
         return Text.serialize(message);
     }
 
-    public void chatMessage(Player sender, Component message) {
+    public void chatMessage(DataContainer sender, Component message) {
         chatMessage(sender, extractRawInput(message));
     }
 
-    public void chatMessage(Player sender, String message) {
+    public void chatMessage(DataContainer sender, String message) {
         if(message.isEmpty()) return;
+
+        Player senderAsPlayer = uxModule.storage().getPlayerByIdentifier(sender.identifier());
 
         StringBuilder builder = new StringBuilder(Text.restrictTags(message)); // save input for event
 
@@ -218,7 +224,7 @@ public final class Chat {
         var chatConfig = UXConfiguration.I.chat;
 
         LinkedHashSet<FormatCode> codeBuffer = new LinkedHashSet<>();
-        if(chatConfig.colorFormatting && DefaultPermission.CHAT_FORMATTING.hasPermission(sender)) {
+        if(chatConfig.colorFormatting && DefaultPermission.CHAT_FORMATTING.hasPermission(senderAsPlayer)) {
             int index;
             int belowLimit = - 1;
             while ((index = builder.indexOf("&")) != -1 && index > belowLimit) {
@@ -249,8 +255,8 @@ public final class Chat {
             }
         }
 
-        if(chatConfig.replacements.enabled)
-            Replacement.fillWithReplacements(chatRegistries.replacementRegistry, sender, builder);
+        if(chatConfig.replacements.enabled && senderAsPlayer != null)
+            Replacement.fillWithReplacements(chatRegistries.replacementRegistry, senderAsPlayer, builder);
 
         AsyncPreChatMessageEvent event1 = new AsyncPreChatMessageEvent(
                 sender,
@@ -285,7 +291,7 @@ public final class Chat {
 
         String resultRaw = Placeholders.resolve(
                 chatChannel.format(),
-                Placeholder.create("player_name", sender::getName),
+                Placeholder.create("player_name", sender.identifier()::gameName),
                 Placeholder.createFinal("message", message)
         );
 
@@ -294,18 +300,10 @@ public final class Chat {
         var localChatConfig = chatConfig.localChat;
 
         Storage<DataContainer> storage = uxModule.storage();
-        DataContainer senderContainer;
-        try {
-            senderContainer = storage.getUserDataContainer(sender).get();
-        }
-        catch (Throwable ex) {
-            return;
-        }
-        if(senderContainer == null) return;
 
-        var receiversOrError = chatChannel.resolveReceivers(sender, senderContainer);
-        if(receiversOrError.secondPresent()) {
-            sender.sendMessage(Messages.ERROR.create(receiversOrError.second()));
+        var receiversOrError = chatChannel.resolveReceivers(senderAsPlayer, sender);
+        if(receiversOrError.secondPresent() && senderAsPlayer != null) {
+            senderAsPlayer.sendMessage(Messages.ERROR.create(receiversOrError.second()));
             return;
         }
 
@@ -316,7 +314,7 @@ public final class Chat {
 
             try {
                 Identifier receiverIdentifier = storage.getIdentifier(Either.ofSecond(player.getName())).get();
-                return uxModule.chat().isIgnoring(receiverIdentifier, senderContainer.identifier(), IgnoringType.CHAT);
+                return uxModule.chat().isIgnoring(receiverIdentifier, sender.identifier(), IgnoringType.CHAT);
             }
             catch (Throwable ex) {
                 return false;
@@ -337,8 +335,8 @@ public final class Chat {
                         player,
                         NotificationType.MENTION,
                         Placeholders.resolve(
-                                notification.text.convert().determine(senderContainer),
-                                Placeholder.create("mentioner_name", sender::getName),
+                                notification.text.convert().determine(sender),
+                                Placeholder.create("mentioner_name", sender.identifier()::gameName),
                                 Placeholder.create("player_name", player::getName)
                         ),
                         notification.sound.convert()
@@ -349,10 +347,10 @@ public final class Chat {
 
         Bukkit.getConsoleSender().sendMessage(result);
 
-        if(chatChannel == chatRegistries.localChatChannel) {
+        if(chatChannel == chatRegistries.localChatChannel && senderAsPlayer != null) {
             if (receivers.size() == 1 && localChatConfig.nobodyHeardEnabled)
-                sender.sendMessage(Text.create(localChatConfig.nobodyHeard));
-            sendForSpying(sender, receivers, event1.originalMessage(), message, resultRaw);
+                senderAsPlayer.sendMessage(Text.create(localChatConfig.nobodyHeard));
+            sendForSpying(senderAsPlayer, receivers, event1.originalMessage(), message, resultRaw);
         }
     }
 

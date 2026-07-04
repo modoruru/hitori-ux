@@ -47,7 +47,7 @@ public final class ChatListener implements Listener {
         Bukkit.getOnlinePlayers().parallelStream()
                 .filter(player1 -> player1 != player)
                 .forEach(alreadyOnline ->
-                        uxModule.chat().seenJoinOf.computeIfAbsent(alreadyOnline, _ -> new HashSet<>()).add(uuid)
+                        uxModule.chat().seenJoinOf.computeIfAbsent(alreadyOnline.getUniqueId(), _ -> new HashSet<>()).add(uuid)
                 );
     }
 
@@ -63,7 +63,7 @@ public final class ChatListener implements Listener {
         Chat chat = uxModule.chat();
 
         chat.lastDM.remove(player.getName().toLowerCase());
-        chat.seenJoinOf.remove(player);
+        chat.seenJoinOf.remove(player.getUniqueId());
         chat.deleteSharedInventory(player);
 
         UUID uuid = player.getUniqueId();
@@ -159,7 +159,12 @@ public final class ChatListener implements Listener {
     @EventHandler
     private void onAsyncChat(AsyncChatEvent event) {
         event.setCancelled(true);
-        uxModule.chat().chatMessage(event.getPlayer(), event.message());
+
+        uxModule.storage().getUserDataContainer(event.getPlayer()).thenAccept(container -> {
+            if(container == null) return;
+
+            uxModule.chat().chatMessage(container, event.message());
+        });
     }
 
 }

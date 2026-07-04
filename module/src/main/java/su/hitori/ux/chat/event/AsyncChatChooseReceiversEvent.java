@@ -5,6 +5,7 @@ import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 import su.hitori.ux.chat.channel.ChatChannel;
+import su.hitori.ux.storage.DataContainer;
 
 import java.util.Set;
 
@@ -15,11 +16,11 @@ public class AsyncChatChooseReceiversEvent extends Event {
 
     private static final HandlerList HANDLER_LIST = new HandlerList();
 
-    private final Player sender;
+    private final DataContainer sender;
     private final ChatChannel chatChannel;
     private final Set<Player> receivers;
 
-    public AsyncChatChooseReceiversEvent(Player sender, ChatChannel chatChannel, Set<Player> receivers) {
+    public AsyncChatChooseReceiversEvent(DataContainer sender, ChatChannel chatChannel, Set<Player> receivers) {
         super(true);
         this.sender = sender;
         this.chatChannel = chatChannel;
@@ -29,7 +30,7 @@ public class AsyncChatChooseReceiversEvent extends Event {
     /**
      * Message sender
      */
-    public Player sender() {
+    public DataContainer sender() {
         return sender;
     }
 

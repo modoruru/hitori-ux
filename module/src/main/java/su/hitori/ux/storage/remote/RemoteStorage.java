@@ -123,7 +123,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
                     openFuture.completeExceptionally(new IllegalStateException("Unable to authenticate to RemoteStorage server."));
                     state = ConnectionState.CLOSED;
-                    internalClose();
+                    internalClose(true);
                 }
             }
             case "tracking" -> {
@@ -303,7 +303,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         if(allowedAttempts <= 0 || connectionAttempts >= allowedAttempts) {
             state = ConnectionState.CLOSED;
             printLockMessage(code, reason, connectionAttempts + 1);
-            internalClose();
+            internalClose(true);
             return;
         }
 
@@ -343,7 +343,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         LOGGER.severe(separator);
     }
 
-    private void internalClose() {
+    private void internalClose(boolean kickPlayers) {
         try {
             if(delayedConnectionAttempt != null && delayedConnectionThread != Thread.currentThread())
                 delayedConnectionAttempt.cancel(true);
@@ -358,8 +358,11 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
             for (RemoteDataContainer value : dataCache.values()) {
                 value.close(false);
-                Player player = getPlayerByIdentifier(value.identifier());
-                if(player != null) Task.ensureSync(() -> player.kick(Component.text("Internal error")));
+
+                if(kickPlayers) {
+                    Player player = getPlayerByIdentifier(value.identifier());
+                    if(player != null) Task.ensureSync(() -> player.kick(Component.text("Internal error")));
+                }
             }
 
             if(!clientSocket.isClosed() && !clientSocket.isClosing())
@@ -391,7 +394,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
     public void close() {
         if(state == ConnectionState.NEVER_OPENED || state == ConnectionState.CLOSED) return;
         state = ConnectionState.CLOSED;
-        internalClose();
+        internalClose(false);
     }
 
     void syncPlayer(Player player) {

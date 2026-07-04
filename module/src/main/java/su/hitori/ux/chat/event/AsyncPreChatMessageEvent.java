@@ -1,33 +1,33 @@
 package su.hitori.ux.chat.event;
 
-import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 import su.hitori.ux.chat.channel.ChatChannel;
+import su.hitori.ux.storage.DataContainer;
 
 public class AsyncPreChatMessageEvent extends Event implements Cancellable {
 
     private static final HandlerList HANDLER_LIST = new HandlerList();
 
-    private final Player player;
+    private final DataContainer sender;
     private final String originalMessage;
     private final ChatChannel chatChannel;
 
     private String formattedMessage;
     private boolean cancelled;
 
-    public AsyncPreChatMessageEvent(Player player, String originalMessage, ChatChannel chatChannel, String formattedMessage) {
+    public AsyncPreChatMessageEvent(DataContainer sender, String originalMessage, ChatChannel chatChannel, String formattedMessage) {
         super(true);
-        this.player = player;
+        this.sender = sender;
         this.originalMessage = originalMessage;
         this.chatChannel = chatChannel;
         this.formattedMessage = formattedMessage;
     }
 
-    public Player player() {
-        return player;
+    public DataContainer sender() {
+        return sender;
     }
 
     public String originalMessage() {

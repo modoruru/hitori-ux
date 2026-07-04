@@ -36,7 +36,6 @@ import su.hitori.ux.tab.TabListener;
 
 import java.net.URI;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -217,7 +216,7 @@ public final class UXModule extends Module {
         storage.close();
     }
 
-    public ExecutorService executorService() {
+    public ScheduledExecutorService executorService() {
         return executorService;
     }
 
