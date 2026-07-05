@@ -176,13 +176,6 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                 CachedRequest request = requestCache.remove(requestUuid);
                 if(request == null) return;
 
-                if(request.requestedUuid() != null)
-                    requestedUuidToRequestUuidCache.remove(request.requestedUuid());
-                if(request.requestedGameUuid() != null)
-                    requestedGameUuidToRequestUuidCache.remove(request.requestedGameUuid());
-                if(request.requestedGameName() != null)
-                    requestedGameNameToRequestUuidCache.remove(request.requestedGameName());
-
                 boolean success = messageBody.optBoolean("success");
                 if(!success) {
                     request.request().complete(null);
@@ -195,33 +188,11 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
                     return;
                 }
 
-                Identifier identifier = RemoteStorageUtil.decodeIdentifier(identifierBody);
-
-                RemoteDataContainer container = new RemoteDataContainer(
-                        this,
-                        identifier,
-                        (SERVER_DATA_IDENTIFIER.equals(identifier) ? serverDataScheme : userDataScheme).values(),
-                        !request.cache()
-                );
-
-                JSONObject containerBody = messageBody.optJSONObject("container");
-                if(containerBody != null) container.initialize(containerBody);
-
-                if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
-                    LOGGER.info(identifier.gameName() + " container is now cached and tracked");
-
-                dataCache.put(identifier, container);
-                identifierCacheByUuid.put(identifier.uuid(), identifier);
-                identifierCacheByGameUuid.put(identifier.gameUuid(), identifier);
-                identifierCacheByGameName.put(identifier.gameName().toLowerCase(), identifier);
-
-                trackingStatus(identifier.uuid(), true);
-
-                Player player = getPlayerByIdentifier(identifier);
-                if(player != null)
-                    Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 0L);
-
-                request.request().complete(container);
+                request.request().complete(createAndInitializeContainer(
+                        RemoteStorageUtil.decodeIdentifier(identifierBody),
+                        request.temporary(),
+                        messageBody.optJSONObject("container")
+                ));
             }
             case "complete_identifier" -> {
                 UUID uuid = UUID.fromString(messageBody.optString("request_uuid"));
@@ -233,6 +204,39 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             }
             default -> {}
         }
+    }
+
+    protected RemoteDataContainer createAndInitializeContainer(Identifier identifier, boolean temporary, JSONObject containerBody) {
+        if(dataCache.get(identifier) != null) return dataCache.get(identifier);
+
+        requestedUuidToRequestUuidCache.remove(identifier.uuid());
+        requestedGameUuidToRequestUuidCache.remove(identifier.gameUuid());
+        requestedGameNameToRequestUuidCache.remove(identifier.gameName());
+
+        RemoteDataContainer container = new RemoteDataContainer(
+                this,
+                identifier,
+                (SERVER_DATA_IDENTIFIER.equals(identifier) ? serverDataScheme : userDataScheme).values(),
+                temporary
+        );
+
+        if(containerBody != null) container.initialize(containerBody);
+
+        if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
+            LOGGER.info(identifier.gameName() + " container is now cached and tracked");
+
+        dataCache.put(identifier, container);
+        identifierCacheByUuid.put(identifier.uuid(), identifier);
+        identifierCacheByGameUuid.put(identifier.gameUuid(), identifier);
+        identifierCacheByGameName.put(identifier.gameName().toLowerCase(), identifier);
+
+        trackingStatus(identifier.uuid(), true);
+
+        Player player = getPlayerByIdentifier(identifier);
+        if(player != null)
+            Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 0L);
+
+        return container;
     }
 
     @Override
@@ -509,7 +513,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             if(cachedData.temporary && cache) {
                 cachedData.temporary = false;
                 if(UXConfiguration.I.storage.remoteImplementation.verboseLogging)
-                    LOGGER.info(cachedData.identifier().toString() + " became permanent.");
+                    LOGGER.info(cachedData.identifier().toString() + " became temporary.");
             }
             return CompletableFuture.completedFuture(cachedData);
         }
@@ -523,14 +527,16 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         openFuture.thenRun(() -> createViewRequest(uuid, gameUuid, gameName, requestUuid));
         CompletableFuture<RemoteDataContainer> future = new CompletableFuture<>();
 
-        requestCache.put(requestUuid, new CachedRequest(future, cache, uuid, gameUuid, gameName));
+        requestCache.put(requestUuid, new CachedRequest(future, cache));
 
-        Task.runGlobally(() -> {
-            if (!future.isDone()) {
-                future.completeExceptionally(new TimeoutException("View container request timed out"));
-                cleanupRequest(requestUuid, uuid, gameUuid, gameName);
-            }
-        }, 20L * REQUEST_TIMEOUT_SECONDS);
+        if(!Bukkit.isStopping()) {
+            Task.runGlobally(() -> {
+                if (!future.isDone()) {
+                    future.completeExceptionally(new TimeoutException("View container request timed out"));
+                    cleanupRequest(requestUuid, uuid, gameUuid, gameName);
+                }
+            }, 20L * REQUEST_TIMEOUT_SECONDS);
+        }
 
         if(uuid != null) requestedUuidToRequestUuidCache.put(uuid, requestUuid);
         if(gameUuid != null) requestedGameUuidToRequestUuidCache.put(gameUuid, requestUuid);
@@ -617,12 +623,14 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         CompletableFuture<@Nullable Identifier> future = new CompletableFuture<>();
         identifierRequests.put(requestUuid, future);
 
-        Task.runGlobally(() -> {
-            if (!future.isDone()) {
-                future.completeExceptionally(new TimeoutException("Identifier request timed out"));
-                identifierRequests.remove(requestUuid);
-            }
-        }, 20L * REQUEST_TIMEOUT_SECONDS);
+        if(!Bukkit.isStopping()) {
+            Task.runGlobally(() -> {
+                if (!future.isDone()) {
+                    future.completeExceptionally(new TimeoutException("Identifier request timed out"));
+                    identifierRequests.remove(requestUuid);
+                }
+            }, 20L * REQUEST_TIMEOUT_SECONDS);
+        }
 
         return future;
     }

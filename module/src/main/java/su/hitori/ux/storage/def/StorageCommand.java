@@ -229,7 +229,7 @@ public final class StorageCommand extends CommandAPICommand {
             return;
         }
 
-        sender.sendMessage(Messages.INFO.create("Removing old identifier from cache and closing data container <dark_gray>(1/3)</dark_gray>"));
+        sender.sendMessage(Messages.INFO.create("Removing old identifier from the cache and closing data container <dark_gray>(1/3)</dark_gray>"));
         storage.quit(old);
 
         sender.sendMessage(Messages.INFO.create("Inserting new data to database... <dark_gray>(2/3)</dark_gray>"));

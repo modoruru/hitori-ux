@@ -4,7 +4,7 @@ import javax.annotation.Nullable;
 
 /**
  * DataContainer is a per-player container with their additional data stored.
- * Depending on implementation, data is temporarily stored in cache or queried/inserted directly into the database.
+ * Depending on implementation, data is temporarily stored in the cache or queried/inserted directly into the database.
  */
 public interface DataContainer {
 

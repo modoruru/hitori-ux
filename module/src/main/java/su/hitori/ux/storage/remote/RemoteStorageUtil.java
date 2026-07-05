@@ -5,7 +5,7 @@ import su.hitori.ux.storage.Identifier;
 
 import java.util.UUID;
 
-final class RemoteStorageUtil {
+public final class RemoteStorageUtil {
 
     private RemoteStorageUtil() {}
 

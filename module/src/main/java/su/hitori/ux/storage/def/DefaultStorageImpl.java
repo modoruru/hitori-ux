@@ -218,7 +218,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
     }
 
     /**
-     * syncs player data - loads it into cache while player online
+     * syncs player data - loads it into the cache while player online
      */
     void syncPlayer(Player player, boolean callEvent) {
         long start = System.currentTimeMillis();
