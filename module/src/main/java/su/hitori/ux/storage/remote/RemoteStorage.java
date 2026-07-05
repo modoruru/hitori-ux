@@ -21,15 +21,15 @@ import java.util.logging.Logger;
 
 public class RemoteStorage implements Storage<RemoteDataContainer> {
 
-    private static final int REQUEST_TIMEOUT_SECONDS = 30;
+    protected static final int REQUEST_TIMEOUT_SECONDS = 30;
 
-    private static final Identifier SERVER_DATA_IDENTIFIER = new Identifier(
+    protected static final Identifier SERVER_DATA_IDENTIFIER = new Identifier(
             new UUID(0, 0),
             new UUID(0, 0),
             ""
     );
 
-    private static final Logger LOGGER = LoggerFactory.instance().create(RemoteStorage.class);
+    protected static final Logger LOGGER = LoggerFactory.instance().create(RemoteStorage.class);
 
     protected final ScheduledExecutorService executorService;
     protected final ClientSocket clientSocket;
@@ -249,7 +249,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         addFields(false, fields);
     }
 
-    private void addFields(boolean userScheme, DataField<?>... fields) {
+    protected void addFields(boolean userScheme, DataField<?>... fields) {
         if(isInitialized())
             throw new IllegalStateException("RemoteStorage doesn't allows changing scheme after initiation");
 
@@ -337,7 +337,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         executorService.execute(() -> connect(true));
     }
 
-    private static void printLockMessage(int code, String reason, int attempts) {
+    protected static void printLockMessage(int code, String reason, int attempts) {
         final String separator = "========================================";
         LOGGER.severe(separator);
         LOGGER.severe("The connection to the storage could not be established. Server is now locked - non of the players can join.");
@@ -347,7 +347,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         LOGGER.severe(separator);
     }
 
-    private void internalClose(boolean kickPlayers) {
+    protected final void internalClose(boolean kickPlayers) {
         try {
             if(delayedConnectionAttempt != null && delayedConnectionThread != Thread.currentThread())
                 delayedConnectionAttempt.cancel(true);
@@ -401,7 +401,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         internalClose(false);
     }
 
-    void syncPlayer(Player player) {
+    protected void syncPlayer(Player player) {
         long start = System.currentTimeMillis();
         getUserDataContainer(
                 null,
@@ -418,7 +418,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         });
     }
 
-    void quit(Player player) {
+    protected void quit(Player player) {
         Identifier identifier = identifierCacheByGameName.remove(player.getName().toLowerCase());
         if(identifier == null) return;
 
@@ -434,7 +434,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             LOGGER.info(identifier.gameName() + " container is now marked as temporary.");
     }
 
-    void quit(Identifier identifier) {
+    protected void quit(Identifier identifier) {
         RemoteDataContainer container = dataCache.remove(identifier);
 
         identifierCacheByUuid.remove(identifier.uuid());
@@ -448,7 +448,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
             LOGGER.info(identifier.gameName() + " container was closed.");
     }
 
-    void trackingStatus(UUID uuid, boolean status) {
+    protected void trackingStatus(UUID uuid, boolean status) {
         if(state != ConnectionState.AUTHORIZED) return;
 
         executorService.execute(() -> clientSocket.send(
@@ -475,7 +475,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return getUserDataContainer(SERVER_DATA_IDENTIFIER, true, true);
     }
 
-    private CachedRequest findCachedRequest(UUID uuid, UUID gameUuid, String gameName) {
+    protected final CachedRequest findCachedRequest(UUID uuid, UUID gameUuid, String gameName) {
         UUID requestUuid = null;
 
         if(uuid != null) requestUuid =  requestedUuidToRequestUuidCache.get(uuid);
@@ -487,7 +487,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return requestCache.get(requestUuid);
     }
 
-    private RemoteDataContainer findCachedData(UUID uuid, UUID gameUuid, String gameName) {
+    protected final RemoteDataContainer findCachedData(UUID uuid, UUID gameUuid, String gameName) {
         Identifier identifier = null;
 
         if(uuid != null) identifier = identifierCacheByUuid.get(uuid);
@@ -545,14 +545,14 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         return future;
     }
 
-    private void cleanupRequest(UUID requestUuid, UUID uuid, UUID gameUuid, String gameName) {
+    protected void cleanupRequest(UUID requestUuid, UUID uuid, UUID gameUuid, String gameName) {
         requestCache.remove(requestUuid);
         if (uuid != null) requestedUuidToRequestUuidCache.remove(uuid);
         if (gameUuid != null) requestedGameUuidToRequestUuidCache.remove(gameUuid);
         if (gameName != null) requestedGameNameToRequestUuidCache.remove(gameName.toLowerCase());
     }
 
-    void pushValueAsync(UUID uuid, String field, Object value) {
+    protected void pushValueAsync(UUID uuid, String field, Object value) {
         executorService.execute(() -> {
             JSONObject messageBody = new JSONObject()
                     .put("type", "storage_data_push")
@@ -564,7 +564,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         });
     }
 
-    private void createViewRequest(UUID uuid, UUID gameUuid, String gameName, UUID requestUuid) {
+    protected void createViewRequest(UUID uuid, UUID gameUuid, String gameName, UUID requestUuid) {
         JSONObject requestBody = new JSONObject()
                 .put("type", "view_container")
                 .put("request_uuid", requestUuid.toString());
@@ -579,7 +579,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         clientSocket.send(requestBody.toString());
     }
 
-    private void createCompleteRequest(UUID uuid, String gameName, UUID requestUuid) {
+    protected void createCompleteRequest(UUID uuid, String gameName, UUID requestUuid) {
         JSONObject requestBody = new JSONObject()
                 .put("type", "complete_identifier")
                 .put("request_uuid", requestUuid.toString());
