@@ -286,7 +286,7 @@ public final class Chat {
         ));
     }
 
-    private void findAndReplaceMention(Player player, StringBuilder content, @Nullable Set<Player> mentioned) {
+    private boolean findAndReplaceMention(Player player, StringBuilder content, @Nullable Set<Player> mentioned) {
         final String substringToFind = UXConfiguration.I.chat.mentions.requireAtSymbol ? ("@" + player.getName()) : player.getName();
         final int substringLength = substringToFind.length();
 
@@ -308,6 +308,8 @@ public final class Chat {
         }
 
         if(indexThreshold != 0 && mentioned != null) mentioned.add(player);
+
+        return indexThreshold != 0;
     }
 
     public void sendPreProcessed(final PreProcessedMessage message) {
@@ -403,7 +405,25 @@ public final class Chat {
             }
 
             StringBuilder contentCopy = new StringBuilder(content);
-            findAndReplaceMention(player, contentCopy, null);
+            if(findAndReplaceMention(player, contentCopy, null)) {
+                if(mentionNotification == null) {
+                    var notification = chatConfig.mentions.notification;
+                    mentionNotification = new Notification(
+                            NotificationType.MENTION,
+                            Placeholders.resolve(
+                                    notification.text.convert().determine(message.senderContainer()),
+                                    Placeholder.create("mentioner_name", message.senderContainer().identifier()::gameName)
+                            ),
+                            notification.sound.convert()
+                    );
+                }
+
+                uxModule.notifications().sendNotification(
+                        player,
+                        mentionNotification
+                );
+            }
+
             player.sendMessage(Text.create(Placeholders.resolve(
                     message.chatChannel().format(),
                     Placeholder.create("player_name", message.senderContainer().identifier()::gameName),
