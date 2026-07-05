@@ -175,8 +175,6 @@ public final class UXModule extends Module {
         );
 
         advertisements.start();
-        tab.start();
-        events.load();
 
         context.enableHooksFuture().thenRun(() -> {
             if(storageType != 2 && storage == null) {
@@ -201,6 +199,8 @@ public final class UXModule extends Module {
             );
 
             storage.open(context.hasEnabledBefore());
+            tab.start();
+            events.load();
             streams.load();
         });
     }

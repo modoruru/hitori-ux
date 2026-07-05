@@ -527,7 +527,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
         openFuture.thenRun(() -> createViewRequest(uuid, gameUuid, gameName, requestUuid));
         CompletableFuture<RemoteDataContainer> future = new CompletableFuture<>();
 
-        requestCache.put(requestUuid, new CachedRequest(future, cache));
+        requestCache.put(requestUuid, new CachedRequest(future, !cache));
 
         if(!Bukkit.isStopping()) {
             Task.runGlobally(() -> {
