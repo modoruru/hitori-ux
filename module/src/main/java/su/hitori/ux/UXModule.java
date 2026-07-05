@@ -178,27 +178,27 @@ public final class UXModule extends Module {
         tab.start();
         events.load();
 
-        storage.addFieldsToUserScheme(
-                PronounsInfluencedText.GENDER_FIELD,
-                PronounsInfluencedText.PRONOUNS_FIELD,
-                Chat.CHAT_IGNORING_FIELD,
-                Chat.DM_IGNORING_FIELD,
-                SpyCommand.SPYING_FIELD,
-                Events.HIDDEN_EVENTS_FIELD,
-                Chat.SEEN_FIRST_VISIT_MESSAGE_FIELD
-        );
-
-        storage.addFieldsToServerScheme(
-                Events.ACTIVE_EVENTS_FIELD,
-                Streams.ONGOING_STREAMS_FIELD
-        );
-
         context.enableHooksFuture().thenRun(() -> {
             if(storageType != 2 && storage == null) {
                 // todo: maybe add a logic to framework to disable module manually
                 LOGGER.severe("Module finished loading but Storage implementation was not installed. Module will not work normally");
                 return;
             }
+
+            storage.addFieldsToUserScheme(
+                    PronounsInfluencedText.GENDER_FIELD,
+                    PronounsInfluencedText.PRONOUNS_FIELD,
+                    Chat.CHAT_IGNORING_FIELD,
+                    Chat.DM_IGNORING_FIELD,
+                    SpyCommand.SPYING_FIELD,
+                    Events.HIDDEN_EVENTS_FIELD,
+                    Chat.SEEN_FIRST_VISIT_MESSAGE_FIELD
+            );
+
+            storage.addFieldsToServerScheme(
+                    Events.ACTIVE_EVENTS_FIELD,
+                    Streams.ONGOING_STREAMS_FIELD
+            );
 
             storage.open(context.hasEnabledBefore());
             streams.load();
