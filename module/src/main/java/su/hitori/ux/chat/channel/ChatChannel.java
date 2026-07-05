@@ -15,7 +15,7 @@ public interface ChatChannel extends Keyed {
     boolean isPrivate();
 
     /**
-     * @return a set of receivers or an error that will be sent to the player explaining why the message wouldn't be sent
+     * @return a mutable set of receivers or an error that will be sent to the player explaining why the message couldn't be sent
      */
     Either<Set<Player>, String> resolveReceivers(@Nullable Player sender, DataContainer senderContainer);
 

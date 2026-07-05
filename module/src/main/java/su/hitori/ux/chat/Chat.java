@@ -3,6 +3,7 @@ package su.hitori.ux.chat;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import su.hitori.api.Pair;
 import su.hitori.api.logging.LoggerFactory;
@@ -21,6 +22,7 @@ import su.hitori.ux.chat.event.AsyncJoinReactionEvent;
 import su.hitori.ux.chat.event.AsyncPreChatMessageEvent;
 import su.hitori.ux.chat.replacement.Replacement;
 import su.hitori.ux.config.UXConfiguration;
+import su.hitori.ux.notification.Notification;
 import su.hitori.ux.notification.NotificationType;
 import su.hitori.ux.permission.DefaultPermission;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
@@ -100,6 +102,7 @@ public final class Chat {
         this.seenJoinOf = new HashMap<>();
     }
 
+    @SuppressWarnings("unused") // api
     public RegistryAccess registryAccess() {
         return chatRegistries;
     }
@@ -107,25 +110,26 @@ public final class Chat {
     public void sendHello(Player from, Player joined) {
         uxModule.storage().getUserDataContainer(from).thenAccept(container -> {
             if(container == null) return;
-            Task.ensureAsync(() -> sendHelloInternal(container, joined));
+            Task.ensureAsync(() -> sendHelloInternal(from, container, joined));
         });
     }
 
-    private void sendHelloInternal(DataContainer from, Player joined) {
+    private void sendHelloInternal(Player from, DataContainer fromContainer, Player joined) {
         if(from == joined) return;
 
-        Set<UUID> seenJoin = seenJoinOf.get(from.identifier().gameUuid());
+        Set<UUID> seenJoin = seenJoinOf.get(fromContainer.identifier().gameUuid());
         if(seenJoin == null || !seenJoin.remove(joined.getUniqueId())) return;
 
         AsyncJoinReactionEvent event = new AsyncJoinReactionEvent(
-                from,
+                fromContainer,
                 joined,
                 UXConfiguration.I.chat.joinQuit.hello
         );
         if(!event.callEvent()) return;
 
-        chatMessage(
+        sendChatMessage(
                 from,
+                fromContainer,
                 Placeholders.resolveDynamic(
                         "!" + event.helloFormat(),
                         joined,
@@ -163,18 +167,18 @@ public final class Chat {
         return Text.serialize(message);
     }
 
-    public void chatMessage(DataContainer sender, Component message) {
-        chatMessage(sender, extractRawInput(message));
+    public void sendChatMessage(Player sender, DataContainer senderContainer, Component message) {
+        sendChatMessage(sender, senderContainer, extractRawInput(message));
     }
 
-    public void chatMessage(DataContainer sender, String message) {
-        if(message.isEmpty()) return;
+    public void sendChatMessage(Player sender, DataContainer senderContainer, String content) {
+        if(content.isEmpty()) return;
 
-        Player senderAsPlayer = uxModule.storage().getPlayerByIdentifier(sender.identifier());
+        long creationTime = System.currentTimeMillis();
 
-        StringBuilder builder = new StringBuilder(Text.restrictTags(message)); // save input for event
+        StringBuilder contentBuilder = new StringBuilder(Text.restrictTags(content)); // save input for event
 
-        char firstCharacter = message.charAt(0);
+        char firstCharacter = content.charAt(0);
         ChatChannel chatChannel = null;
         for (ChatChannel registeredChannel : chatRegistries.chatChannelRegistry.elements()) {
             char channelPrefix = registeredChannel.prefixSymbol();
@@ -184,26 +188,28 @@ public final class Chat {
             }
         }
 
-        if(chatChannel == null) chatChannel = chatRegistries.localChatChannel;
+        if(chatChannel == null)
+            chatChannel = chatRegistries.localChatChannel;
         else {
             do {
-                builder.deleteCharAt(0);
+                contentBuilder.deleteCharAt(0);
             }
-            while (builder.charAt(0) == ' ');
+            while (contentBuilder.charAt(0) == ' ');
 
-            if(builder.isEmpty()) return;
+            if(contentBuilder.isEmpty()) return;
         }
 
-        int length = builder.length();
-        while (builder.charAt(length - 1) == '\\') {
-            builder.deleteCharAt(--length);
+        int length = contentBuilder.length();
+        while (contentBuilder.charAt(length - 1) == '\\') {
+            contentBuilder.deleteCharAt(--length);
         }
 
         // URL Processing
-        Matcher urlMatcher = BOXED_URL_PATTERN.matcher(builder);
+        Matcher urlMatcher = BOXED_URL_PATTERN.matcher(contentBuilder);
         if(urlMatcher.find() && validateURL(urlMatcher.group("url"))) {
             String url = urlMatcher.group("url");
-            builder = new StringBuilder(String.format(
+            contentBuilder.delete(0, contentBuilder.length());
+            contentBuilder.insert(0, String.format(
                     BOXED_URL_FORMAT,
                     urlMatcher.group("prefix"),
                     url, url,
@@ -211,9 +217,10 @@ public final class Chat {
                     urlMatcher.group("suffix")
             ));
         }
-        else if((urlMatcher = URL_PATTERN.matcher(builder)).find() && validateURL(urlMatcher.group("url"))) {
+        else if((urlMatcher = URL_PATTERN.matcher(contentBuilder)).find() && validateURL(urlMatcher.group("url"))) {
             String url = urlMatcher.group("url");
-            builder = new StringBuilder(String.format(
+            contentBuilder.delete(0, contentBuilder.length());
+            contentBuilder.insert(0, String.format(
                     URL_FORMAT,
                     urlMatcher.group("prefix"),
                     url, url, url,
@@ -224,140 +231,191 @@ public final class Chat {
         var chatConfig = UXConfiguration.I.chat;
 
         LinkedHashSet<FormatCode> codeBuffer = new LinkedHashSet<>();
-        if(chatConfig.colorFormatting && senderAsPlayer != null && DefaultPermission.CHAT_FORMATTING.hasPermission(senderAsPlayer)) {
+        if(chatConfig.colorFormatting && DefaultPermission.CHAT_FORMATTING.hasPermission(sender)) {
             int index;
-            int belowLimit = - 1;
-            while ((index = builder.indexOf("&")) != -1 && index > belowLimit) {
-                if(index >= builder.length() - 1) break; // we cant check if there's
+            int indexThreshold = -1;
+            while ((index = contentBuilder.indexOf("&")) != -1 && index > indexThreshold) {
+                if(index >= contentBuilder.length() - 1) break;
 
-                belowLimit = index;
+                indexThreshold = index;
 
-                FormatCode code = FormatCode.INDEX.get(builder.charAt(index + 1));
+                FormatCode code = FormatCode.INDEX.get(contentBuilder.charAt(index + 1));
                 if(code == null) continue;
 
                 if(code == FormatCode.RESET) {
-                    builder.delete(index, index + 2);
+                    contentBuilder.delete(index, index + 2);
 
                     int offsetIndex = index;
                     while (!codeBuffer.isEmpty()) {
                         String toInsert = "</" + codeBuffer.removeLast().minimessage + '>';
-                        builder.insert(offsetIndex, toInsert);
+                        contentBuilder.insert(offsetIndex, toInsert);
                         offsetIndex += toInsert.length();
                     }
                     continue;
                 }
 
-                if(codeBuffer.contains(code)) builder.replace(index, index + 2, "");
+                if(codeBuffer.contains(code)) contentBuilder.replace(index, index + 2, "");
                 else {
                     codeBuffer.addLast(code);
-                    builder.replace(index, index + 2, '<' + code.minimessage + '>');
+                    contentBuilder.replace(index, index + 2, '<' + code.minimessage + '>');
                 }
             }
         }
 
-        if(chatConfig.replacements.enabled && senderAsPlayer != null)
-            Replacement.fillWithReplacements(chatRegistries.replacementRegistry, senderAsPlayer, builder);
+        if(chatConfig.replacements.enabled)
+            Replacement.fillWithReplacements(chatRegistries.replacementRegistry, sender, contentBuilder);
 
-        AsyncPreChatMessageEvent event1 = new AsyncPreChatMessageEvent(
+        AsyncPreChatMessageEvent event = new AsyncPreChatMessageEvent(
                 sender,
-                message,
+                senderContainer,
+                content,
+                creationTime,
                 chatChannel,
-                builder.toString()
+                contentBuilder.toString()
         );
-        if(!event1.callEvent()) return;
 
-        message = event1.formattedMessage();
+        if(!event.callEvent()) return;
+
+        sendPreProcessed(new PreProcessedMessage(
+                sender,
+                senderContainer,
+                content,
+                creationTime,
+                chatChannel,
+                event.preProcessedContent
+        ));
+    }
+
+    private void findAndReplaceMention(Player player, StringBuilder content, @Nullable Set<Player> mentioned) {
+        final String substringToFind = UXConfiguration.I.chat.mentions.requireAtSymbol ? ("@" + player.getName()) : player.getName();
+        final int substringLength = substringToFind.length();
+
+        int index;
+        int indexThreshold = 0;
+        String formattedMention = null; // do not create instance until it's necessary
+        int formattedMentionLength = -1;
+        while ((index = content.indexOf(substringToFind, indexThreshold)) != -1) {
+            if(index >= content.length() -1) break;
+
+            if(formattedMention == null) {
+                formattedMention = Placeholders.resolveDynamic(UXConfiguration.I.chat.mentions.formatting, player, PLAYER_NAME_PLACEHOLDER);
+                formattedMentionLength = formattedMention.length();
+            }
+
+            indexThreshold = index + formattedMentionLength;
+
+            content.replace(index, substringLength, formattedMention);
+        }
+
+        if(indexThreshold != 0 && mentioned != null) mentioned.add(player);
+    }
+
+    public void sendPreProcessed(final PreProcessedMessage message) {
+        var chatConfig = UXConfiguration.I.chat;
+
+        Player sender = message.sender();
+        StringBuilder content = new StringBuilder(message.preProcessedContent());
 
         Set<Player> mentioned = new HashSet<>();
         var mentionsConfig = chatConfig.mentions;
-        if(mentionsConfig.enabled) {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                if(player == sender) continue;
-                String name = mentionsConfig.requireAtSymbol ? ("@" + player.getName()) : player.getName();
 
-                if(message.contains(name)) {
-                    mentioned.add(player);
-                    message = message.replaceAll(
-                            name,
-                            Placeholders.resolveDynamic(
-                                    chatConfig.mentions.formatting,
-                                    player,
-                                    PLAYER_NAME_PLACEHOLDER
-                            )
-                    );
-                }
+        if(mentionsConfig.enabled && mentionsConfig.showToEveryone) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if(sender != null && player == sender) continue;
+
+                findAndReplaceMention(player, content, mentioned);
             }
         }
 
-        String resultRaw = Placeholders.resolve(
-                chatChannel.format(),
-                Placeholder.create("player_name", sender.identifier()::gameName),
-                Placeholder.createFinal("message", message)
-        );
-
-        Component result = Text.create(resultRaw);
-
-        var localChatConfig = chatConfig.localChat;
-
-        Storage<DataContainer> storage = uxModule.storage();
-
-        var receiversOrError = chatChannel.resolveReceivers(senderAsPlayer, sender);
-        if(receiversOrError.secondPresent() && senderAsPlayer != null) {
-            senderAsPlayer.sendMessage(Messages.ERROR.create(receiversOrError.second()));
+        // receivers step 1: requesting 'em from the ChatChannel
+        var receiversOrError = message.chatChannel().resolveReceivers(sender, message.senderContainer());
+        if(receiversOrError.secondPresent()) {
+            if(sender != null) sender.sendMessage(Messages.ERROR.create(receiversOrError.second()));
             return;
         }
 
+        // receivers step 2: copy result
         Set<Player> receivers = receiversOrError.first();
 
+        // receivers step 3: remove everyone who ignore player in global chat
         receivers.removeIf(player -> {
             if(player == sender) return false;
 
             try {
-                Identifier receiverIdentifier = storage.getIdentifier(Either.ofSecond(player.getName())).get();
-                return uxModule.chat().isIgnoring(receiverIdentifier, sender.identifier(), IgnoringType.CHAT);
+                Identifier receiverIdentifier = uxModule.storage().getIdentifier(Either.ofSecond(player.getName())).get();
+                return uxModule.chat().isIgnoring(receiverIdentifier, message.senderContainer().identifier(), IgnoringType.CHAT);
             }
             catch (Throwable ex) {
                 return false;
             }
         });
 
-        new AsyncChatChooseReceiversEvent(
-                sender,
-                chatChannel,
-                receivers
-        ).callEvent();
+        // receivers step 4: allow third-party listeners to modify receivers list
+        new AsyncChatChooseReceiversEvent(message.senderContainer(), message.chatChannel(), receivers).callEvent();
 
-        // send result message
-        for (Player player : receivers) {
-            if(mentioned.contains(player)) {
-                var notification = chatConfig.mentions.notification;
-                uxModule.notifications().sendNotification(
-                        player,
-                        NotificationType.MENTION,
-                        Placeholders.resolve(
-                                notification.text.convert().determine(sender),
-                                Placeholder.create("mentioner_name", sender.identifier()::gameName),
-                                Placeholder.create("player_name", player::getName)
-                        ),
-                        notification.sound.convert()
-                );
-            }
-            player.sendMessage(result);
+        // we should create at least one receiver-lost result variant for console and spying
+        String sharedRawResult = Placeholders.resolve(
+                message.chatChannel().format(),
+                Placeholder.create("player_name", message.senderContainer().identifier()::gameName),
+                Placeholder.createFinal("message", content.toString())
+        );
+        Component sharedResult = Text.create(sharedRawResult);
+
+        // send to console and to spying processing
+        Bukkit.getConsoleSender().sendMessage(sharedResult);
+
+        if(message.chatChannel() == chatRegistries.localChatChannel) {
+            assert sender != null;
+
+            var localChatConfig = chatConfig.localChat;
+            if (receivers.size() == 1 && localChatConfig.nobodyHeardEnabled)
+                sender.sendMessage(Text.create(localChatConfig.nobodyHeard));
+
+            sendForSpying(message.sender().getName(), receivers, message.originalContent(), content.toString(), sharedRawResult);
         }
 
-        Bukkit.getConsoleSender().sendMessage(result);
+        // send result message
 
-        if(chatChannel == chatRegistries.localChatChannel && senderAsPlayer != null) {
-            if (receivers.size() == 1 && localChatConfig.nobodyHeardEnabled)
-                senderAsPlayer.sendMessage(Text.create(localChatConfig.nobodyHeard));
-            sendForSpying(senderAsPlayer, receivers, event1.originalMessage(), message, resultRaw);
+        Notification mentionNotification = null;
+        for (Player player : receivers) {
+            if(!mentionsConfig.enabled || mentionsConfig.showToEveryone) {
+                if(mentioned.contains(player)) {
+                    if(mentionNotification == null) {
+                        var notification = chatConfig.mentions.notification;
+                        mentionNotification = new Notification(
+                                NotificationType.MENTION,
+                                Placeholders.resolve(
+                                        notification.text.convert().determine(message.senderContainer()),
+                                        Placeholder.create("mentioner_name", message.senderContainer().identifier()::gameName)
+                                ),
+                                notification.sound.convert()
+                        );
+                    }
+
+                    uxModule.notifications().sendNotification(
+                            player,
+                            mentionNotification
+                    );
+                }
+
+                player.sendMessage(sharedResult);
+                continue;
+            }
+
+            StringBuilder contentCopy = new StringBuilder(content);
+            findAndReplaceMention(player, contentCopy, null);
+            player.sendMessage(Text.create(Placeholders.resolve(
+                    message.chatChannel().format(),
+                    Placeholder.create("player_name", message.senderContainer().identifier()::gameName),
+                    Placeholder.createFinal("message", content.toString())
+            )));
         }
     }
 
-    private void sendForSpying(Player sender, Set<Player> receivers, String input, String formattedInput, String formattedMessage) {
+    private void sendForSpying(String senderName, Set<Player> receivers, String input, String formattedInput, String formattedMessage) {
         Component result = Text.create(Placeholders.resolve(
                 UXConfiguration.I.chat.localChat.spying.format,
-                Placeholder.create("sender_name", sender::getName),
+                Placeholder.createFinal("sender_name", senderName),
                 Placeholder.createFinal("input", input),
                 Placeholder.createFinal("formatted_input", formattedInput),
                 Placeholder.createFinal("formatted_message", formattedMessage)

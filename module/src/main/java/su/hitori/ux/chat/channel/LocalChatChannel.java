@@ -37,6 +37,8 @@ final class LocalChatChannel implements ChatChannel {
         // find message receivers
         Location senderLocation = sender.getLocation();
         Set<Player> receivers = new HashSet<>(Bukkit.getOnlinePlayers()); // use optimized set
+        if(localChatConfig.radius < 0) return Either.ofFirst(receivers);
+
         double radius = localChatConfig.radius * localChatConfig.radius;
         receivers.removeIf(
                 player -> {

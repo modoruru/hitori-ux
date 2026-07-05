@@ -160,10 +160,11 @@ public final class ChatListener implements Listener {
     private void onAsyncChat(AsyncChatEvent event) {
         event.setCancelled(true);
 
-        uxModule.storage().getUserDataContainer(event.getPlayer()).thenAccept(container -> {
+        Player sender = event.getPlayer();
+        uxModule.storage().getUserDataContainer(sender).thenAccept(container -> {
             if(container == null) return;
 
-            uxModule.chat().chatMessage(container, event.message());
+            uxModule.chat().sendChatMessage(sender, container, event.message());
         });
     }
 

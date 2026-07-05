@@ -88,6 +88,8 @@ public final class UXConfiguration extends YamlSerializable {
         public Pronouns pronouns = new Pronouns();
         public FirstVisit firstVisit = new FirstVisit();
         public String sharedInventoryFormat = "<hover:show_text:'Click to view %player_name% inventory'><click:run_command:'/sharedinventory %shared_inventory_uuid%'>[%player_name% inventory]";
+
+        @Comment(value = {@CommentValue(" Requires hitori:chat_formatting permission.")})
         public boolean colorFormatting = true;
 
         public static final class FirstVisit {
@@ -108,10 +110,13 @@ public final class UXConfiguration extends YamlSerializable {
             public boolean enabled = true;
             public boolean requireAtSymbol = false;
 
+            @Comment(value = {@CommentValue(" If enabled, everyone will see formatted mentions in the message. Otherwise, mention would only appear formatted for the mentioned one.")})
+            public boolean showToEveryone = true;
+
             @Comment(value = {@CommentValue(" Formatting for mention. <player_name> returns mentioned player name.")})
             public String formatting = "<bold>%player_name%</bold>";
 
-            @Comment(value = {@CommentValue(" Notification format. %mentioner_name% for name of who mentioned player and %player_name% for mentioned name. Gender for message will be taken from mentioner.")})
+            @Comment(value = {@CommentValue(" Notification format. %mentioner_name% for name of who mentioned player. Pronouns for message will be taken from mentioner.")})
             public Notification notification = new Notification(
                     NotificationType.MENTION,
                     new PronounsInfluencedText("%mentioner_name% mentioned you."),
@@ -125,6 +130,8 @@ public final class UXConfiguration extends YamlSerializable {
         }
 
         public static final class DirectMessages {
+            public boolean enabled = true;
+
             public String receiverFormat = "<color:#479dff>[%sender_name% » I]:</color> <white><click:suggest_command:'/tell %sender_name% '>%message%</white>";
             public String senderFormat = "<color:#47ff8e>[I » %receiver_name%]:</color> <white><click:suggest_command:'/tell %receiver_name% '>%message%</white>";
             public Sound receiveSound = new Sound("block.amethyst_block.hit");

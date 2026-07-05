@@ -147,14 +147,18 @@ public final class UXModule extends Module {
             if(!context.hasEnabledBefore()) disableVanillaCommands();
             context.listeners().register(new ChatListener(this));
             context.commands().register(
-                    new DirectMessageCommand(chat),
                     new OpenSharedInventoryCommand(chat),
                     new IgnoreCommand(this, true),
                     new IgnoreCommand(this, false),
                     new SpyCommand(this),
-                    new ReplyCommand(chat),
                     new HelloCommand(chat)
             );
+
+            if(config.chat.directMessages.enabled)
+                context.commands().register(
+                        new DirectMessageCommand(chat),
+                        new ReplyCommand(chat)
+                );
         }
 
         if(config.nameTags.enabled) {

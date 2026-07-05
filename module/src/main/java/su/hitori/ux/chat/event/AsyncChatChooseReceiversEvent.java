@@ -10,7 +10,7 @@ import su.hitori.ux.storage.DataContainer;
 import java.util.Set;
 
 /**
- * Called when chat resolving receivers for chat message.
+ * Called when the chat resolving receivers for the chat message.
  */
 public class AsyncChatChooseReceiversEvent extends Event {
 
