@@ -148,11 +148,15 @@ public final class UXModule extends Module {
             context.listeners().register(new ChatListener(this));
             context.commands().register(
                     new OpenSharedInventoryCommand(chat),
-                    new IgnoreCommand(this, true),
-                    new IgnoreCommand(this, false),
                     new SpyCommand(this),
                     new HelloCommand(chat)
             );
+
+            if(config.chat.ignoring.enabled)
+                context.commands().register(
+                        new IgnoreCommand(this, true),
+                        new IgnoreCommand(this, false)
+                );
 
             if(config.chat.directMessages.enabled)
                 context.commands().register(

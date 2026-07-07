@@ -340,17 +340,19 @@ public final class Chat {
         Set<Player> receivers = receiversOrError.first();
 
         // receivers step 3: remove everyone who ignore player in global chat
-        receivers.removeIf(player -> {
-            if(player == sender) return false;
+        if(chatConfig.ignoring.enabled) {
+            receivers.removeIf(player -> {
+                if(player == sender) return false;
 
-            try {
-                Identifier receiverIdentifier = uxModule.storage().getIdentifier(Either.ofSecond(player.getName())).get();
-                return uxModule.chat().isIgnoring(receiverIdentifier, message.senderContainer().identifier(), IgnoringType.CHAT);
-            }
-            catch (Throwable ex) {
-                return false;
-            }
-        });
+                try {
+                    Identifier receiverIdentifier = uxModule.storage().getIdentifier(Either.ofSecond(player.getName())).get();
+                    return uxModule.chat().isIgnoring(receiverIdentifier, message.senderContainer().identifier(), IgnoringType.CHAT);
+                }
+                catch (Throwable ex) {
+                    return false;
+                }
+            });
+        }
 
         // receivers step 4: allow third-party listeners to modify receivers list
         new AsyncChatChooseReceiversEvent(message.senderContainer(), message.chatChannel(), receivers).callEvent();
@@ -478,27 +480,30 @@ public final class Chat {
     }
 
     private void sendDirectMessageInternal(Player sender, DataContainer senderContainer, Player receiver, DataContainer receiverContainer, String message) {
-        var directMessagesConfig = UXConfiguration.I.chat.directMessages;
+        var chatConfig = UXConfiguration.I.chat;
+        var directMessagesConfig = chatConfig.directMessages;
 
         if(sender == receiver) {
             sender.sendMessage(Messages.ERROR.create(directMessagesConfig.cantSendYourself));
             return;
         }
 
-        if(isIgnoring(senderContainer.identifier(), receiverContainer.identifier(), IgnoringType.DIRECT_MESSAGES)) {
-            sender.sendActionBar(Text.create(Placeholders.resolve(
-                    directMessagesConfig.haveBlocked.convert().determine(receiverContainer),
-                    Placeholder.create("receiver_name", receiver::getName)
-            )));
-            return;
-        }
+        if (chatConfig.ignoring.enabled) {
+            if (isIgnoring(senderContainer.identifier(), receiverContainer.identifier(), IgnoringType.DIRECT_MESSAGES)) {
+                sender.sendActionBar(Text.create(Placeholders.resolve(
+                        directMessagesConfig.haveBlocked.convert().determine(receiverContainer),
+                        Placeholder.create("receiver_name", receiver::getName)
+                )));
+                return;
+            }
 
-        if(isIgnoring(receiverContainer.identifier(), senderContainer.identifier(), IgnoringType.DIRECT_MESSAGES)) {
-            sender.sendActionBar(Text.create(Placeholders.resolve(
-                    directMessagesConfig.areBlocked.convert().determine(receiverContainer),
-                    Placeholder.create("receiver_name", receiver::getName)
-            )));
-            return;
+            if (isIgnoring(receiverContainer.identifier(), senderContainer.identifier(), IgnoringType.DIRECT_MESSAGES)) {
+                sender.sendActionBar(Text.create(Placeholders.resolve(
+                        directMessagesConfig.areBlocked.convert().determine(receiverContainer),
+                        Placeholder.create("receiver_name", receiver::getName)
+                )));
+                return;
+            }
         }
 
         // todo: message processing logic from main chat
@@ -590,14 +595,19 @@ public final class Chat {
 
     // ignore
     public Set<UUID> getIgnoringSet(Identifier identifier, IgnoringType ignoringType) {
+        if(!UXConfiguration.I.chat.ignoring.enabled) return Set.of();
+
         return Set.copyOf(getIgnoringSet(identifier, ignoringType.field));
     }
 
     public boolean isIgnoring(Identifier identifier, Identifier toCheck, IgnoringType ignoringType) {
+        if(!UXConfiguration.I.chat.ignoring.enabled) return false;
         return getIgnoringSet(identifier, ignoringType).contains(toCheck.uuid());
     }
 
     public void setIgnoring(Identifier identifier, Identifier toIgnore, IgnoringType ignoringType, boolean ignoring) {
+        if(!UXConfiguration.I.chat.ignoring.enabled) return;
+
         Set<UUID> set = getIgnoringSet(identifier, ignoringType.field);
 
         if(set.contains(toIgnore.uuid()) == ignoring) return;
@@ -609,12 +619,16 @@ public final class Chat {
     }
 
     private Set<UUID> getIgnoringSet(Identifier identifier, DataField<Set<UUID>> field) {
+        if(!UXConfiguration.I.chat.ignoring.enabled) return Set.of();
+
         return getDataContainer(identifier)
                 .map(container -> container.get(field))
                 .orElse(new HashSet<>());
     }
 
     private void setSet(Identifier identifier, DataField<Set<UUID>> field, Set<UUID> value) {
+        if(!UXConfiguration.I.chat.ignoring.enabled) return;
+
         getDataContainer(identifier).ifPresent(container ->
                 container.set(field, value)
         );

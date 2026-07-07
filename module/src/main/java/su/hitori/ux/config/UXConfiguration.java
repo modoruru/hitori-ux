@@ -178,6 +178,8 @@ public final class UXConfiguration extends YamlSerializable {
         }
 
         public static final class Ignoring {
+            public boolean enabled = true;
+
             public String ignoredNow = "You are now ignoring <yellow>%ignored_name%</yellow> in %ignoring_type%.";
             public String alreadyIgnored = "You are already ignoring <yellow>%ignored_name%</yellow> in %ignoring_type%!";
             public String unignoredNow = "You are no longer ignoring <yellow>%ignored_name%</yellow> in %ignoring_type%.";
