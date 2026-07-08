@@ -16,6 +16,7 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import su.hitori.api.nms.NMSUtil;
+import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.config.UXConfiguration;
 import su.hitori.ux.placeholder.DynamicPlaceholder;
@@ -29,7 +30,9 @@ final class NameTagEntity {
     final Player player;
     final ServerPlayer serverPlayer;
     TextDisplay textDisplay;
+    Task task;
 
+    long lastTeamUpdate;
     boolean initialized;
 
     NameTagEntity(NameTags nameTags, Player player, ServerPlayer serverPlayer, TextDisplay textDisplay) {
@@ -37,6 +40,14 @@ final class NameTagEntity {
         this.player = player;
         this.serverPlayer = serverPlayer;
         this.textDisplay = textDisplay;
+        createTask();
+    }
+
+    private void createTask() {
+        if(textDisplay == null) return;
+        if(task != null) task.cancel();
+
+        task = Task.runTaskTimerEntity(textDisplay, () -> update(nameTags.playerTeam, nameTags.lastTeamUpdate > lastTeamUpdate), 1L, 20L);
     }
 
     private static TextDisplay createAndSetup(Player player) {
@@ -70,6 +81,8 @@ final class NameTagEntity {
     }
 
     void update(PlayerTeam playerTeam, boolean updateTeamData) {
+        if(updateTeamData) this.lastTeamUpdate = System.currentTimeMillis();
+
         if(!initialized) {
             playerTeam.getPlayers().add(player.getName());
             serverPlayer.connection.send(ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(playerTeam, true));
@@ -87,24 +100,29 @@ final class NameTagEntity {
             if(textDisplay != null) {
                 textDisplay.remove();
                 textDisplay = null;
+                task.cancel();
+                task = null;
             }
             return;
         }
 
-        if(textDisplay == null)
+        if(textDisplay == null) {
             textDisplay = createAndSetup(player);
+            createTask();
+        }
 
         if(lying) {
             player.removePassenger(textDisplay);
-            textDisplay.teleport(player.getLocation().add(0, 1, 0));
+            textDisplay.teleportAsync(player.getLocation().add(0, 1, 0));
         }
         else if(player.getPassengers().isEmpty())
             player.addPassenger(textDisplay);
 
         Location location = player.getLocation();
         if(location.getWorld() != textDisplay.getWorld()) {
-            textDisplay.teleport(location);
-            if(!lying) player.addPassenger(textDisplay);
+            textDisplay.teleportAsync(location).thenAccept(success -> {
+                if(success && !lying) player.addPassenger(textDisplay);
+            });
         }
 
         textDisplay.text(Text.create(Placeholders.resolveDynamic(

@@ -27,7 +27,7 @@ public final class Advertisements {
 
         if(sendTask != null || !UXConfiguration.I.advertisements.enabled) return;
 
-        sendTask = Task.runTaskTimerAsync(this::send, 0L, config.period * 20L);
+        sendTask = Task.runTaskTimerAsync(this::send, 1L, config.period * 20L);
     }
 
     private void send() {
@@ -47,7 +47,7 @@ public final class Advertisements {
         long stayLength = config.stay * 20L;
         stayTask = Task.runTaskTimerAsync(() ->
                 toReceive.forEach(player -> player.sendActionBar(advertisement)),
-                0L, 1L
+                1L, 1L
         );
 
         Task.async(() -> {

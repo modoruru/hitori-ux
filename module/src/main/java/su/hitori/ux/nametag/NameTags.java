@@ -6,7 +6,6 @@ import net.minecraft.world.scores.Team;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import su.hitori.api.module.ModuleDescriptor;
-import su.hitori.api.util.Task;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -16,12 +15,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class NameTags {
 
     private final AtomicReference<ModuleDescriptor> resourcePackModuleReference;
-    private final PlayerTeam playerTeam;
-    private final Map<Player, NameTagEntity> tags;
+    final PlayerTeam playerTeam;
+    final Map<Player, NameTagEntity> tags;
 
-    private Task task;
     private SkinsRestorerHook skinsRestorerHook;
-    private boolean teamDirty;
+    long lastTeamUpdate;
+
+    private boolean started;
 
     public NameTags(AtomicReference<ModuleDescriptor> resourcePackModuleReference) {
         this.resourcePackModuleReference = resourcePackModuleReference;
@@ -52,8 +52,9 @@ public final class NameTags {
     }
 
     public void start() {
-        if(task != null) return;
-        task = Task.runTaskTimerGlobally(this::update, 0L, 20L);
+        if(started) return;
+
+        started = true;
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             track(player);
@@ -65,9 +66,9 @@ public final class NameTags {
     }
 
     public void stop() {
-        if(task == null) return;
-        task.cancel();
-        task = null;
+        if(!started) return;
+
+        started = false;
 
         for (NameTagEntity nameTagEntity : tags.values()) {
             nameTagEntity.remove();
@@ -80,7 +81,7 @@ public final class NameTags {
     void track(Player player) {
         if(tags.containsKey(player)) return;
         tags.put(player, NameTagEntity.create(this, player));
-        teamDirty = true;
+        lastTeamUpdate = System.currentTimeMillis();
     }
     
     void untrack(Player player) {
@@ -91,19 +92,12 @@ public final class NameTags {
 
     void forceUpdate(Player player) {
         NameTagEntity nameTagEntity = tags.get(player);
-        if(nameTagEntity != null) nameTagEntity.update(playerTeam, teamDirty);
+        if(nameTagEntity != null) nameTagEntity.update(playerTeam, lastTeamUpdate > nameTagEntity.lastTeamUpdate);
     }
 
     void forceResendPassengers(Player player) {
         NameTagEntity nameTagEntity = tags.get(player);
         if(nameTagEntity != null) nameTagEntity.resendPassengers();
-    }
-
-    private void update() {
-        for (NameTagEntity nameTagEntity : tags.values()) {
-            nameTagEntity.update(playerTeam, teamDirty);
-        }
-        if(teamDirty) teamDirty = false;
     }
 
 }

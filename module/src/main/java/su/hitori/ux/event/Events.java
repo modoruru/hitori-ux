@@ -105,7 +105,7 @@ public final class Events {
                     this.activeEvents.put(event.uuid(), event);
                 }
             }
-            onStartReminderTask = Task.runTaskTimerAsync(this::onStartReminderTick, 0L, 20L);
+            onStartReminderTask = Task.runTaskTimerAsync(this::onStartReminderTick, 1L, 20L);
         });
     }
 

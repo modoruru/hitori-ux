@@ -167,7 +167,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                     }
                     toClose.forEach(this::quit);
 
-                }), 0L, 20L);
+                }), 1L, 20L);
 
                 return null;
             }
