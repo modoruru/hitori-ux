@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation("org.java-websocket:Java-WebSocket:${properties["websocket_version"]}")
+    implementation("org.java-websocket:Java-WebSocket:${property("websocket_version")}")
     implementation("org.json:json:20251224")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
