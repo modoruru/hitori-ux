@@ -1,10 +1,12 @@
 package su.hitori.ux.storage.def;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.BooleanArgument;
-import dev.jorel.commandapi.arguments.TextArgument;
-import dev.jorel.commandapi.arguments.UUIDArgument;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.json.JSONObject;
@@ -24,43 +26,41 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-public final class StorageCommand extends CommandAPICommand {
+public final class StorageCommand {
 
-    private final DefaultStorageImpl storage;
+    private StorageCommand() {}
 
-    public StorageCommand(DefaultStorageImpl storage) {
-        super("storage");
-        this.storage = storage;
-
-        withPermission("*");
-        withSubcommands(
-                new CommandAPICommand("move")
-                        .withArguments(new TextArgument("old_name"), new UUIDArgument("new_uuid"), new TextArgument("new_name"), new BooleanArgument("move_game_data"))
-                        .executes(this::move),
-
-                new CommandAPICommand("util").withSubcommands(
-                        new CommandAPICommand("offline-uuid")
-                                .withArguments(new TextArgument("name"))
-                                .executes(this::utilOfflineUuid)
-                ),
-
-                new CommandAPICommand("dump")
-                        .withArguments(new TextArgument("name"))
-                        .executes(this::dump),
-
-                new CommandAPICommand("initializeServer")
-                        .withArguments(new TextArgument("field"), new TextArgument("file"))
-                        .executes(this::initialize),
-
-                new CommandAPICommand("saveServer")
-                        .withArguments(new TextArgument("field"), new TextArgument("file"))
-                        .executes(this::save)
-        );
+    public static LiteralCommandNode<CommandSourceStack> bootstrap(DefaultStorageImpl storage) {
+        return Commands.literal("storage")
+                .requires(source -> source.getSender().hasPermission("*"))
+                .then(Commands.literal("move")
+                        .then(Commands.argument("old_name", StringArgumentType.string())
+                                .then(Commands.argument("new_uuid", ArgumentTypes.uuid())
+                                        .then(Commands.argument("new_name", StringArgumentType.string())
+                                                .then(Commands.argument("move_game_data", BoolArgumentType.bool())
+                                                        .executes(context -> move(storage, context)))))))
+                .then(Commands.literal("initializeServer")
+                        .then(Commands.argument("field", StringArgumentType.string())
+                                .then(Commands.argument("file", StringArgumentType.string())
+                                        .executes(context -> initialize(storage, context)))))
+                .then(Commands.literal("dump")
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .executes(context -> dump(storage, context))))
+                .then(Commands.literal("util")
+                        .then(Commands.literal("offline-uuid")
+                                .then(Commands.argument("name", StringArgumentType.string())
+                                        .executes(StorageCommand::utilOfflineUuid))))
+                .then(Commands.literal("saveServer")
+                        .then(Commands.argument("field", StringArgumentType.string())
+                                .then(Commands.argument("file", StringArgumentType.string())
+                                        .executes(context -> save(storage, context)))))
+                .build();
     }
 
-    private void initialize(CommandSender sender, CommandArguments args) {
-        String fieldName = (String) args.get("field");
-        assert fieldName != null;
+    private static int initialize(DefaultStorageImpl storage, CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+
+        String fieldName = context.getArgument("field", String.class);
 
         Set<DataField<?>> scheme = storage.serverDataScheme;
 
@@ -69,19 +69,19 @@ public final class StorageCommand extends CommandAPICommand {
                 .orElse(null);
         if(field == null) {
             sender.sendMessage(Messages.ERROR.create("Can't find requested field."));
-            return;
+            return 0;
         }
 
-        File file = new File(Bukkit.getPluginsFolder().getParentFile(), args.getOrDefaultUnchecked("file", ""));
+        File file = new File(Bukkit.getPluginsFolder().getParentFile(), context.getArgument("file", String.class));
         if(!file.exists()) {
             sender.sendMessage(Messages.ERROR.create("File doesn't exists."));
-            return;
+            return 0;
         }
 
         Object json = JSONUtil.readFile(file).get("encoded");
         if(json == null) {
             sender.sendMessage(Messages.ERROR.create("Encoded object is not found."));
-            return;
+            return 0;
         }
 
         sender.sendMessage(Messages.INFO.create("Proceeding on loading data..."));
@@ -93,7 +93,7 @@ public final class StorageCommand extends CommandAPICommand {
         catch (Exception exception) {
             exception.printStackTrace();
             sender.sendMessage(Messages.ERROR.create("An error has been caught."));
-            return;
+            return 0;
         }
 
         storage.getServerDataContainer().thenAccept(container -> {
@@ -102,11 +102,14 @@ public final class StorageCommand extends CommandAPICommand {
             container.set(UnsafeUtil.cast(field), value);
             sender.sendMessage(Messages.INFO.create("Everything should be fine."));
         });
+
+        return 1;
     }
 
-    private void save(CommandSender sender, CommandArguments args) {
-        String fieldName = (String) args.get("field");
-        assert fieldName != null;
+    private static int save(DefaultStorageImpl storage, CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+
+        String fieldName = context.getArgument("field", String.class);
 
         Set<DataField<?>> scheme = storage.serverDataScheme;
 
@@ -115,10 +118,10 @@ public final class StorageCommand extends CommandAPICommand {
                 .orElse(null);
         if(field == null) {
             sender.sendMessage(Messages.ERROR.create("Can't find requested field."));
-            return;
+            return 0;
         }
 
-        File file = new File(Bukkit.getPluginsFolder().getParentFile(), args.getOrDefaultUnchecked("file", ""));
+        File file = new File(Bukkit.getPluginsFolder().getParentFile(), context.getArgument("file", String.class));
 
         storage.getServerDataContainer().thenAccept(container -> {
             if(container == null) return;
@@ -146,11 +149,13 @@ public final class StorageCommand extends CommandAPICommand {
 
             sender.sendMessage(Messages.INFO.create("Everything should be fine."));
         });
+
+        return 1;
     }
 
-    private void dump(CommandSender sender, CommandArguments args) {
-        String name = (String) args.get("name");
-        assert name != null;
+    private static int dump(DefaultStorageImpl storage, CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        String name = context.getArgument("name", String.class);
 
         storage.getIdentifier(Either.ofSecond(name)).thenCompose(identifier -> storage.getUserDataContainer(identifier, true, false)).thenAccept(container -> {
             if(container == null) {
@@ -173,25 +178,29 @@ public final class StorageCommand extends CommandAPICommand {
                     dump
             )));
         });
+
+        return 1;
     }
 
-    private void utilOfflineUuid(CommandSender sender, CommandArguments args) {
-        String name = (String) args.get("name");
+    private static int utilOfflineUuid(CommandContext<CommandSourceStack> context) {
+        String name = context.getArgument("name", String.class);
         UUID uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
-        sender.sendMessage(Messages.INFO.create(String.format(
+        context.getSource().getSender().sendMessage(Messages.INFO.create(String.format(
                 "Offline UUID (pirate) of <yellow>%s</yellow> would be <yellow><hover:show_text:'Click to copy'><click:copy_to_clipboard:%s>[%s]</yellow> <dark_gray>(click to copy)</dark_gray>",
                 name,
                 uuid,
                 uuid
         )));
+        return 1;
     }
 
-    private void move(CommandSender sender, CommandArguments args) {
-        String oldName = (String) args.get("old_name");
-        UUID newUuid = (UUID) args.get("new_uuid");
-        String newName = (String) args.get("new_name");
-        boolean moveGameData = (boolean) args.getOrDefault("move_game_data", true);
-        assert oldName != null && newUuid != null && newName != null;
+    private static int move(DefaultStorageImpl storage, CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+
+        String oldName = context.getArgument("old_name", String.class);
+        UUID newUuid = context.getArgument("new_uuid", UUID.class);
+        String newName = context.getArgument("new_name", String.class);
+        boolean moveGameData = context.getArgument("move_game_data", boolean.class);
 
         storage.getIdentifier(Either.ofSecond(oldName)).thenAccept(identifier -> {
             if(identifier == null) {
@@ -201,16 +210,18 @@ public final class StorageCommand extends CommandAPICommand {
 
             Task.ensureAsync(() -> {
                 try {
-                    movePlayerData(sender, identifier, newUuid, newName, moveGameData);
+                    movePlayerData(storage, sender, identifier, newUuid, newName, moveGameData);
                 } catch (Throwable ex) {
                     ex.printStackTrace();
                 }
             });
         });
+
+        return 1;
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
-    private void movePlayerData(CommandSender sender, Identifier old, UUID newGameUuid, String newGameName, boolean moveGameData) throws ExecutionException, InterruptedException {
+    private static void movePlayerData(DefaultStorageImpl storage, CommandSender sender, Identifier old, UUID newGameUuid, String newGameName, boolean moveGameData) throws ExecutionException, InterruptedException {
         Identifier id0 = storage.getIdentifier(Either.ofSecond(newGameName)).get(), id1 = null;
 
         if(id0 != null || (id1 = storage.getIdentifier(Either.ofSecond(newGameName)).get()) != null) {

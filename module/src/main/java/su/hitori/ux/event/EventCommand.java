@@ -1,65 +1,66 @@
 package su.hitori.ux.event;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.TextArgument;
-import dev.jorel.commandapi.arguments.UUIDArgument;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import su.hitori.api.command.DateArgument;
 import su.hitori.api.util.Messages;
 import su.hitori.api.util.Task;
 import su.hitori.ux.config.UXConfiguration;
+import su.hitori.ux.util.DateArgumentType;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
-public final class EventCommand extends CommandAPICommand {
+public final class EventCommand {
 
-    private final Events events;
+    private EventCommand() {}
 
-    public EventCommand(Events events) {
-        super("event");
-        this.events = events;
+    public static LiteralCommandNode<CommandSourceStack> bootstrap(Events events) {
+        Predicate<CommandSourceStack> onlyPlayer = source -> source.getSender() instanceof Player;
+        Predicate<CommandSourceStack> onlyAdmin = source -> source.getSender().hasPermission("*");
 
-        withSubcommands(
-                new CommandAPICommand("plan").withArguments(
-                        new TextArgument("name"),
-                        new TextArgument("description"),
-                        new DateArgument("start_time", Events.DATE_FORMAT, Events.ZONE_ID, true)
-                ).executes(this::plan), // plans new event
-
-                new CommandAPICommand("ok")
-                        .withArguments(new UUIDArgument("uuid"))
-                        .executesPlayer(this::ok), // hides notification about event
-
-                new CommandAPICommand("end")
-                        .withPermission("*")
-                        .withArguments(new UUIDArgument("uuid"))
-                        .executes(this::end), // ends event,
-
-                new CommandAPICommand("list")
-                        .withPermission("*")
-                        .executes(this::list),
-
-                new CommandAPICommand("view")
-                        .withArguments(new UUIDArgument("uuid"))
-                        .executesPlayer(this::view)
-        );
+        return Commands.literal("event")
+                .then(Commands.literal("plan")
+                        .requires(onlyAdmin)
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .then(Commands.argument("description", StringArgumentType.string())
+                                        .then(Commands.argument("start_time", DateArgumentType.date(Events.DATE_FORMAT, Events.ZONE_ID, true))
+                                                .executes(context -> plan(events, context))))))
+                .then(Commands.literal("ok")
+                        .requires(onlyPlayer)
+                        .then(Commands.argument("uuid", ArgumentTypes.uuid()))
+                        .executes(context -> ok(events, context)))
+                .then(Commands.literal("list")
+                        .requires(onlyAdmin)
+                        .executes(context -> list(events, context)))
+                .then(Commands.literal("end")
+                        .requires(onlyAdmin)
+                        .then(Commands.argument("uuid", ArgumentTypes.uuid())
+                                .executes(context -> end(events, context))))
+                .then(Commands.literal("view")
+                        .requires(onlyPlayer)
+                        .then(Commands.argument("uuid", ArgumentTypes.uuid())
+                                .executes(context -> view(events, context))))
+                .build();
     }
 
-    private void plan(CommandSender sender, CommandArguments args) {
+    private static int plan(Events events, CommandContext<CommandSourceStack> context) {
         if(events.activeEvents().size() >= Events.MAX_EVENTS) {
-            sender.sendMessage(Messages.ERROR.create(UXConfiguration.I.events.alreadyPlanned));
-            return;
+            context.getSource().getSender().sendMessage(Messages.ERROR.create(UXConfiguration.I.events.alreadyPlanned));
+            return 0;
         }
 
-        String name = (String) args.get("name");
-        String description = (String) args.get("description");
-        ZonedDateTime date = (ZonedDateTime) args.get("start_time");
-        assert name != null && description != null && date != null;
+        String name = context.getArgument("name", String.class);
+        String description = context.getArgument("description", String.class);
+        ZonedDateTime date = context.getArgument("start_time", ZonedDateTime.class);
 
         events.planEvent(new Event(
                 UUID.randomUUID(),
@@ -67,14 +68,17 @@ public final class EventCommand extends CommandAPICommand {
                 description,
                 date.toInstant().toEpochMilli()
         ));
+        return 1;
     }
 
-    private void ok(Player sender, CommandArguments args) {
+    private static int ok(Events events, CommandContext<CommandSourceStack> context) {
+        Player sender = (Player) context.getSource().getSender();
+
         var config = UXConfiguration.I.events;
-        Event event = events.getEvent((UUID) args.get("uuid"));
+        Event event = events.getEvent(context.getArgument("uuid", UUID.class));
         if(event == null) {
             sender.sendMessage(Messages.ERROR.create(config.noEvent));
-            return;
+            return 0;
         }
 
         events.uxModule.storage().getUserDataContainer(sender).thenAccept(container -> {
@@ -90,39 +94,47 @@ public final class EventCommand extends CommandAPICommand {
             container.set(Events.HIDDEN_EVENTS_FIELD, hidden);
             sender.sendMessage(Messages.INFO.create(config.hidden));
         });
+        return 1;
     }
 
-    private void end(CommandSender sender, CommandArguments args) {
+    private static int end(Events events, CommandContext<CommandSourceStack> context) {
         var config = UXConfiguration.I.events;
-        Event event = events.getEvent((UUID) args.get("uuid"));
+        Event event = events.getEvent(context.getArgument("uuid", UUID.class));
         if(event == null) {
-            sender.sendMessage(Messages.ERROR.create(config.noEvent));
-            return;
+            context.getSource().getSender().sendMessage(Messages.ERROR.create(config.noEvent));
+            return 0;
         }
 
         events.endEvent(event);
+
+        return 1;
     }
 
-    private void list(CommandSender sender, CommandArguments args) {
-        var events = this.events.activeEvents();
-        if(events.isEmpty()) {
+    private static int list(Events events, CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        var activeEvents = events.activeEvents();
+        if(activeEvents.isEmpty()) {
             sender.sendMessage(Messages.ERROR.create("There's no active events!"));
-            return;
+            return 0;
         }
 
         StringBuilder builder = new StringBuilder("UUID's of events:");
-        for (Event event : events) {
+        for (Event event : activeEvents) {
             builder.append("\n - \"").append(event.name()).append("\", ");
             builder.append("UUID: <click:copy_to_clipboard:").append(event.uuid().toString()).append("><yellow>[click to copy]</click>");
         }
 
         sender.sendMessage(Messages.INFO.create(builder.toString()));
+
+        return 1;
     }
 
-    private void view(Player sender, CommandArguments args) {
-        Event event = events.getEvent((UUID) args.get("uuid"));
-        if(event == null) return;
-        Task.ensureAsync(() -> events.showReminder(sender, event));
+    private static int view(Events events, CommandContext<CommandSourceStack> context) {
+        Event event = events.getEvent(context.getArgument("uuid", UUID.class));
+        if(event == null) return 0;
+        Task.ensureAsync(() -> events.showReminder((Player) context.getSource().getSender(), event));
+
+        return 1;
     }
 
 }

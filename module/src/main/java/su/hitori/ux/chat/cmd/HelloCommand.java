@@ -1,25 +1,27 @@
 package su.hitori.ux.chat.cmd;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.EntitySelectorArgument;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
+import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
 import org.bukkit.entity.Player;
 import su.hitori.ux.chat.Chat;
 
-public final class HelloCommand extends CommandAPICommand {
+public final class HelloCommand {
 
-    private final Chat chat;
+    private HelloCommand() {}
 
-    public HelloCommand(Chat chat) {
-        super("hello");
-        this.chat = chat;
-
-        withArguments(new EntitySelectorArgument.OnePlayer("player"));
-        executesPlayer(this::execute);
-    }
-
-    private void execute(Player sender, CommandArguments args) {
-        chat.sendHello(sender, (Player) args.get("player"));
+    public static LiteralCommandNode<CommandSourceStack> bootstrap(Chat chat) {
+        return Commands.literal("helo")
+                .requires(source -> source.getSender() instanceof Player)
+                .then(Commands.argument("player", ArgumentTypes.player())
+                        .executes(context -> {
+                            PlayerSelectorArgumentResolver resolver = context.getArgument("player", PlayerSelectorArgumentResolver.class);
+                            chat.sendHello((Player) context.getSource().getSender(), resolver.resolve(context.getSource()).getFirst());
+                            return 1;
+                        }))
+                .build();
     }
 
 }

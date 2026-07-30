@@ -1,8 +1,9 @@
 package su.hitori.ux;
 
-import dev.jorel.commandapi.CommandAPI;
 import net.kyori.adventure.key.Key;
+import org.jspecify.annotations.NonNull;
 import su.hitori.api.Hitori;
+import su.hitori.api.command.CommandsModificationInfo;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.module.Module;
 import su.hitori.api.module.ModuleDescriptor;
@@ -36,6 +37,7 @@ import su.hitori.ux.tab.TabListener;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +68,8 @@ public final class UXModule extends Module {
     private Events events;
     private Streams streams;
 
+    private CommandsModificationInfo commandsModificationInfo;
+
     @Override
     public void setupCompatibility(CompatibilityLayer compatibilityLayer) {
         Key key = Key.key("hitori", "resourcepack");
@@ -76,8 +80,9 @@ public final class UXModule extends Module {
         );
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public void enable(EnableContext context) {
+    public void enable(@NonNull EnableContext context) {
         UXConfiguration config = new UXConfiguration(defaultConfig());
         config.reload();
 
@@ -109,7 +114,7 @@ public final class UXModule extends Module {
                         storage,
                         defaultImplementationConfig.waitForResourcepackModule && Hitori.instance().moduleRepository().isModuleExists(Key.key("hitori", "resourcepack"))
                 ));
-                context.commands().register(new StorageCommand(storage));
+                context.commands().register(StorageCommand.bootstrap(storage));
                 yield 0;
             }
             case "remote" -> {
@@ -146,23 +151,24 @@ public final class UXModule extends Module {
         if(config.chat.enabled) {
             if(!context.hasEnabledBefore()) disableVanillaCommands();
             context.listeners().register(new ChatListener(this));
+
             context.commands().register(
-                    new OpenSharedInventoryCommand(chat),
-                    new SpyCommand(this),
-                    new HelloCommand(chat)
+                    OpenSharedInventoryCommand.bootstrap(chat),
+                    SpyCommand.bootstrap(this),
+                    HelloCommand.bootstrap(chat)
             );
 
             if(config.chat.ignoring.enabled)
                 context.commands().register(
-                        new IgnoreCommand(this, true),
-                        new IgnoreCommand(this, false)
+                        IgnoreCommand.bootstrap(this, true),
+                        IgnoreCommand.bootstrap(this, false)
                 );
 
-            if(config.chat.directMessages.enabled)
-                context.commands().register(
-                        new DirectMessageCommand(chat),
-                        new ReplyCommand(chat)
-                );
+            if(config.chat.directMessages.enabled) {
+                context.commands()
+                        .registerCollection(DirectMessageCommand.bootstrap(chat))
+                        .registerCollection(ReplyCommand.bootstrap(chat));
+            }
         }
 
         if(config.nameTags.enabled) {
@@ -171,11 +177,11 @@ public final class UXModule extends Module {
         }
 
         if(config.chat.pronouns.enabled)
-            context.commands().register(new PronounsCommand(this));
+            context.commands().register(PronounsCommand.bootstrap(this));
 
         context.commands().register(
-                new EventCommand(events),
-                new StreamCommand(this)
+                EventCommand.bootstrap(events),
+                StreamCommand.bootstrap(this)
         );
 
         advertisements.start();
@@ -210,9 +216,10 @@ public final class UXModule extends Module {
     }
 
     private void disableVanillaCommands() {
-        for (String command : List.of("msg", "m", "w", "tell")) {
-            CommandAPI.unregister(command, true);
-        }
+        commandsModificationInfo = Hitori.instance().commandRegistryModifier().applyModificationsInBatch(
+                List.of(),
+                Set.of("msg", "m", "w", "tell")
+        );
     }
 
     @Override
@@ -222,6 +229,10 @@ public final class UXModule extends Module {
         tab.stop();
         events.unload();
         storage.close();
+
+        if(commandsModificationInfo != null && commandsModificationInfo.active()) {
+            Hitori.instance().commandRegistryModifier().undoBatch(commandsModificationInfo);
+        }
     }
 
     public ScheduledExecutorService executorService() {

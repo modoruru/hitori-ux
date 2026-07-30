@@ -1,10 +1,12 @@
 package su.hitori.ux.nametag;
 
 import org.bukkit.GameMode;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.*;
+import org.bukkit.event.world.ChunkLoadEvent;
 import su.hitori.api.util.Task;
 
 public final class NameTagsListener implements Listener {
@@ -23,6 +25,14 @@ public final class NameTagsListener implements Listener {
     @EventHandler
     private void onPlayerWorld(PlayerQuitEvent event) {
         nameTags.untrack(event.getPlayer());
+    }
+
+    @EventHandler
+    private void onChunkLoadEvent(ChunkLoadEvent event) {
+        for (Entity entity : event.getChunk().getEntities()) {
+            if(entity.getPersistentDataContainer().has(NameTags.FOR_REMOVAL))
+                entity.remove();
+        }
     }
 
     @EventHandler

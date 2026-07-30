@@ -4,7 +4,9 @@ import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.scores.Team;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataType;
 import su.hitori.api.module.ModuleDescriptor;
 
 import java.lang.reflect.Method;
@@ -13,6 +15,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class NameTags {
+
+    static final NamespacedKey FOR_REMOVAL = new NamespacedKey("hitori", "for_removal");
 
     private final AtomicReference<ModuleDescriptor> resourcePackModuleReference;
     final PlayerTeam playerTeam;
@@ -70,8 +74,11 @@ public final class NameTags {
 
         started = false;
 
+        boolean serverStopping = Bukkit.isStopping();
+
         for (NameTagEntity nameTagEntity : tags.values()) {
-            nameTagEntity.remove();
+            if(serverStopping) nameTagEntity.textDisplay.getPersistentDataContainer().set(FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
+            nameTagEntity.remove(!serverStopping);
         }
         tags.clear();
 
@@ -87,7 +94,7 @@ public final class NameTags {
     void untrack(Player player) {
         NameTagEntity nameTagEntity = tags.remove(player);
         if(nameTagEntity == null) return;
-        nameTagEntity.remove();
+        nameTagEntity.remove(true);
     }
 
     void forceUpdate(Player player) {

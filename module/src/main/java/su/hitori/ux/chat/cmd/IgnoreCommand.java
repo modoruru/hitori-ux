@@ -1,18 +1,16 @@
 package su.hitori.ux.chat.cmd;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.Argument;
-import dev.jorel.commandapi.arguments.ArgumentSuggestions;
-import dev.jorel.commandapi.arguments.CommandAPIArgumentType;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import su.hitori.api.Pair;
 import su.hitori.api.util.Either;
 import su.hitori.api.util.Messages;
-import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.UXModule;
 import su.hitori.ux.chat.Chat;
@@ -31,34 +29,63 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-public final class IgnoreCommand extends CommandAPICommand {
+public final class IgnoreCommand {
 
     private final Chat chat;
     private final UXModule uxModule;
     private final boolean newIgnoringState;
 
-    public IgnoreCommand(UXModule uxModule, boolean newIgnoringState) {
-        super(newIgnoringState ? "ignore" : "unignore");
+    private IgnoreCommand(UXModule uxModule, boolean newIgnoringState) {
         this.chat = uxModule.chat();
         this.uxModule = uxModule;
         this.newIgnoringState = newIgnoringState;
-
-        withSubcommands(
-                new CommandAPICommand("dm").withArguments(new PlayerIgnoringArgument(uxModule, IgnoringType.DIRECT_MESSAGES, newIgnoringState)).executesPlayer((player, args) -> {
-                    setIgnoring(player, args, IgnoringType.DIRECT_MESSAGES);
-                }),
-
-                new CommandAPICommand("chat").withArguments(new PlayerIgnoringArgument(uxModule, IgnoringType.CHAT, newIgnoringState)).executesPlayer((player, args) -> {
-                    setIgnoring(player, args, IgnoringType.CHAT);
-                }),
-
-                new CommandAPICommand("list").executesPlayer(this::list)
-        );
     }
 
-    private void setIgnoring(Player sender, CommandArguments args, IgnoringType ignoringType) {
-        String playerName = (String) args.get("player");
-        assert playerName != null;
+    public static LiteralCommandNode<CommandSourceStack> bootstrap(UXModule uxModule, boolean newIgnoringState) {
+        IgnoreCommand ignoreCommand = new IgnoreCommand(uxModule, newIgnoringState);
+        return Commands.literal(newIgnoringState ? "ignore" : "unignore")
+                .requires(source -> source.getSender() instanceof Player)
+                .then(Commands.literal("list")
+                        .executes(ignoreCommand::list))
+                .then(Commands.literal("dm")
+                        .then(playerIgnoringArgument(ignoreCommand, IgnoringType.DIRECT_MESSAGES)))
+                .then(Commands.literal("chat")
+                        .then(playerIgnoringArgument(ignoreCommand, IgnoringType.CHAT)))
+                .build();
+    }
+
+    private static RequiredArgumentBuilder<CommandSourceStack, String> playerIgnoringArgument(IgnoreCommand ignoreCommand, IgnoringType ignoringType) {
+        return Commands.argument("player", StringArgumentType.string())
+                .suggests((context, builder) -> {
+                    Player sender = (Player) context.getSource().getSender();
+
+                    UXModule uxModule = ignoreCommand.uxModule;
+                    return uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).thenApply(identifier -> {
+
+                        Set<String> names = uxModule.chat().resolveIgnoringSetIdentifiers(identifier, ignoringType)
+                                .parallelStream()
+                                .map(Identifier::gameName)
+                                .collect(Collectors.toSet());
+
+                        if(!ignoreCommand.newIgnoringState) {
+                            names.forEach(builder::suggest);
+                            return builder.build();
+                        }
+
+                        Bukkit.getOnlinePlayers().parallelStream()
+                                .map(Player::getName)
+                                .filter(name -> !names.contains(name))
+                                .forEach(builder::suggest); // we hope case-sensitive list is returned
+
+                        return builder.build();
+                    });
+                })
+                .executes(source -> ignoreCommand.setIgnoring(ignoringType, source));
+    }
+
+    private int setIgnoring(IgnoringType ignoringType, CommandContext<CommandSourceStack> source) {
+        Player sender = (Player) source.getSource().getSender();
+        String playerName = source.getArgument("player", String.class);
 
         Storage<DataContainer> storage = uxModule.storage();
         CompletableFuture<DataContainer> senderFuture = storage.getUserDataContainer(sender);
@@ -85,6 +112,8 @@ public final class IgnoreCommand extends CommandAPICommand {
 
                     setIgnoring0(sender, senderContainer, targetContainer, ignoringType);
                 });
+
+        return 1;
     }
 
     private void setIgnoring0(Player sender, DataContainer senderContainer, DataContainer targetContainer, IgnoringType ignoringType) {
@@ -130,113 +159,62 @@ public final class IgnoreCommand extends CommandAPICommand {
         )));
     }
 
-    private void list(Player sender, CommandArguments args) {
-        Task.ensureAsync(() -> list0(sender));
-    }
+    private int list(CommandContext<CommandSourceStack> context) {
+        Player sender = (Player) context.getSource().getSender();
 
-    private void list0(Player sender) {
-        Identifier senderId;
-        try {
-            senderId = uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).get();
-        }
-        catch (Throwable ex) {
-            return;
-        }
+        uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).thenAccept(senderId -> {
+            var config = UXConfiguration.I.chat.ignoring.list;
 
-        var config = UXConfiguration.I.chat.ignoring.list;
+            Set<Identifier>
+                    chatSet = chat.resolveIgnoringSetIdentifiers(senderId, IgnoringType.CHAT),
+                    dmSet = chat.resolveIgnoringSetIdentifiers(senderId, IgnoringType.DIRECT_MESSAGES);
 
-        Set<Identifier>
-                chatSet = chat.resolveIgnoringSetIdentifiers(senderId, IgnoringType.CHAT),
-                dmSet = chat.resolveIgnoringSetIdentifiers(senderId, IgnoringType.DIRECT_MESSAGES);
+            if(chatSet.isEmpty() && dmSet.isEmpty()) {
+                sender.sendActionBar(Text.create(config.notIgnoreAnyone));
+                return;
+            }
 
-        if(chatSet.isEmpty() && dmSet.isEmpty()) {
-            sender.sendActionBar(Text.create(config.notIgnoreAnyone));
-            return;
-        }
+            Map<Identifier, SetEntry> map = new HashMap<>();
+            for (Identifier entry : chatSet) {
+                map.computeIfAbsent(entry, (_) -> new SetEntry()).chat = true;
+            }
 
-        Map<Identifier, SetEntry> map = new HashMap<>();
-        for (Identifier entry : chatSet) {
-            map.computeIfAbsent(entry, (_) -> new SetEntry()).chat = true;
-        }
+            for (Identifier entry : dmSet) {
+                map.computeIfAbsent(entry, (_) -> new SetEntry()).dm = true;
+            }
 
-        for (Identifier entry : dmSet) {
-            map.computeIfAbsent(entry, (_) -> new SetEntry()).dm = true;
-        }
+            StringBuilder entries = new StringBuilder();
+            var iterator = map.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<Identifier, SetEntry> entry = iterator.next();
+                entries.append(Placeholders.resolve(
+                        config.entryFormat,
+                        Placeholder.create("ignored_name", () -> entry.getKey().gameName()),
+                        Placeholder.create("ignoring_type", () -> {
+                            SetEntry setEntry = entry.getValue();
+                            return setEntry.dm && setEntry.chat
+                                    ? config.both
+                                    : (setEntry.dm ? config.directMessages : config.chat);
+                        }),
+                        Placeholder.createFinal("c", iterator.hasNext() ? ", " : ""),
+                        Placeholder.createFinal("n", iterator.hasNext() ? "\n" : "")
+                ));
+            }
 
-        StringBuilder entries = new StringBuilder();
-        var iterator = map.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<Identifier, SetEntry> entry = iterator.next();
-            entries.append(Placeholders.resolve(
-                    config.entryFormat,
-                    Placeholder.create("ignored_name", () -> entry.getKey().gameName()),
-                    Placeholder.create("ignoring_type", () -> {
-                        SetEntry setEntry = entry.getValue();
-                        return setEntry.dm && setEntry.chat
-                                ? config.both
-                                : (setEntry.dm ? config.directMessages : config.chat);
-                    }),
-                    Placeholder.createFinal("c", iterator.hasNext() ? ", " : ""),
-                    Placeholder.createFinal("n", iterator.hasNext() ? "\n" : "")
-            ));
-        }
+            sender.sendMessage(Messages.INFO.create(Placeholders.resolve(
+                    config.listFormat,
+                    Placeholder.createFinal("n", map.isEmpty() ? "" : "\n"),
+                    Placeholder.create("entries", entries::toString)
+            )));
+        });
 
-        sender.sendMessage(Messages.INFO.create(Placeholders.resolve(
-                config.listFormat,
-                Placeholder.createFinal("n", map.isEmpty() ? "" : "\n"),
-                Placeholder.create("entries", entries::toString)
-        )));
+        return 1;
     }
 
     private static class SetEntry {
 
         boolean chat, dm;
 
-    }
-
-    private static class PlayerIgnoringArgument extends Argument<String> {
-
-        protected PlayerIgnoringArgument(UXModule uxModule, IgnoringType ignoringType, boolean newIgnoringState) {
-            super("player", StringArgumentType.string());
-            replaceSuggestions(ArgumentSuggestions.stringCollectionAsync(info -> CompletableFuture.supplyAsync(() -> {
-                if(!(info.sender() instanceof Player sender)) return Set.of();
-
-                Identifier identifier;
-                try {
-                    identifier = uxModule.storage().getIdentifier(Either.ofSecond(sender.getName())).get();
-                }
-                catch (Throwable ex) {
-                    return Set.of();
-                }
-
-                Set<String> names = uxModule.chat().resolveIgnoringSetIdentifiers(identifier, ignoringType)
-                        .parallelStream()
-                        .map(Identifier::gameName)
-                        .collect(Collectors.toSet());
-
-                if(!newIgnoringState)
-                    return names;
-
-                return Bukkit.getOnlinePlayers().parallelStream().map(Player::getName)
-                        .filter(name -> !names.contains(name)) // we hope case-sensitive list is returned
-                        .toList();
-            }, uxModule.executorService())));
-        }
-
-        @Override
-        public Class<String> getPrimitiveType() {
-            return String.class;
-        }
-
-        @Override
-        public CommandAPIArgumentType getArgumentType() {
-            return CommandAPIArgumentType.PRIMITIVE_TEXT;
-        }
-
-        @Override
-        public <Source> String parseArgument(CommandContext<Source> cmdCtx, String key, CommandArguments previousArgs) {
-            return cmdCtx.getArgument(key, String.class);
-        }
     }
 
 }

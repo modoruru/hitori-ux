@@ -1,32 +1,37 @@
 package su.hitori.ux.chat.cmd;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.UUIDArgument;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import org.bukkit.entity.Player;
 import su.hitori.ux.chat.Chat;
 import su.hitori.ux.chat.SharedInventoryContainer;
 
 import java.util.UUID;
 
-public final class OpenSharedInventoryCommand extends CommandAPICommand {
+public final class OpenSharedInventoryCommand {
 
-    private final Chat chat;
+    private OpenSharedInventoryCommand() {}
 
-    public OpenSharedInventoryCommand(Chat chat) {
-        super("sharedinventory");
-        this.chat = chat;
-        withArguments(new UUIDArgument("uuid")).executesPlayer(this::openSharedInventory);
+    public static LiteralCommandNode<CommandSourceStack> bootstrap(Chat chat) {
+        return Commands.literal("sharedinventory")
+                .requires(source -> source.getSender() instanceof Player)
+                .then(Commands.argument("uuid", ArgumentTypes.uuid())
+                        .executes(context -> openSharedInventory(chat, context)))
+                .build();
     }
 
-    private void openSharedInventory(Player sender, CommandArguments args) {
-        SharedInventoryContainer sharedInventory = chat.getSharedInventory((UUID) args.get("uuid"));
+    private static int openSharedInventory(Chat chat, CommandContext<CommandSourceStack> context) {
+        SharedInventoryContainer sharedInventory = chat.getSharedInventory(context.getArgument("uuid", UUID.class));
         if(sharedInventory == null) {
             // todo: add error message
-            return;
+            return 0;
         }
 
-        sender.openInventory(sharedInventory.getInventory());
+        ((Player) context.getSource().getSender()).openInventory(sharedInventory.getInventory());
+        return 1;
     }
 
 }

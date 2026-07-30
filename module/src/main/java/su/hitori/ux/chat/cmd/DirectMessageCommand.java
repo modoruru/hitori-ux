@@ -1,19 +1,45 @@
 package su.hitori.ux.chat.cmd;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.EntitySelectorArgument;
-import dev.jorel.commandapi.arguments.GreedyStringArgument;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
+import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
+import org.bukkit.entity.Player;
 import su.hitori.ux.chat.Chat;
 
-public final class DirectMessageCommand extends CommandAPICommand {
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
-    public DirectMessageCommand(Chat chat) {
-        super("msg");
-        withAliases("m", "w", "tell");
-        withArguments(new EntitySelectorArgument.OnePlayer("receiver"), new GreedyStringArgument("message"));
-        executesPlayer((player, args) -> {
-            chat.sendDirectMessage(player, args.getUnchecked("receiver"), args.getUnchecked("message"));
-        });
+public final class DirectMessageCommand {
+
+    private DirectMessageCommand() {}
+
+    public static Collection<LiteralCommandNode<CommandSourceStack>> bootstrap(Chat chat) {
+        LiteralCommandNode<CommandSourceStack> command = Commands.literal("msg")
+                .requires(source -> source.getSender() instanceof Player)
+                .then(Commands.argument("receiver", ArgumentTypes.player())
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
+                                .executes(context -> {
+                                    chat.sendDirectMessage(
+                                            (Player) context.getSource().getSender(),
+                                            context.getArgument("receiver", PlayerSelectorArgumentResolver.class).resolve(context.getSource()).getFirst(),
+                                            context.getArgument("message", String.class)
+                                    );
+                                    return 1;
+                                })))
+                .build();
+
+        List<LiteralCommandNode<CommandSourceStack>> nodes = new ArrayList<>();
+        nodes.add(command);
+
+        for (String literal : List.of("m", "w", "tell")) {
+            nodes.add(Commands.literal(literal).redirect(command).build());
+        }
+
+        return nodes;
     }
 
 }

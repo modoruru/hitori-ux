@@ -1,16 +1,17 @@
 plugins {
     java
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.17"
-    id("com.gradleup.shadow") version "9.4.3"
+    id("io.papermc.paperweight.userdev").version("2.0.0-beta.21")
+    id("com.gradleup.shadow").version("9.4.3")
 }
 
 dependencies {
-    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    compileOnly("com.github.modoruru:hitori:${property("hitori_version")}")
+    paperweight.foliaDevBundle("26.2.build.+")
+    compileOnly("dev.folia:folia-api:26.2.build.+")
+    compileOnly("su.hitori:hitori:${property("hitori_version")}")
     compileOnly("net.skinsrestorer:skinsrestorer-api:15.10.0")
 
     implementation("org.java-websocket:Java-WebSocket:${property("websocket_version")}")
+    implementation("com.h2database:h2:${property("h2_version")}")
 }
 
 tasks {

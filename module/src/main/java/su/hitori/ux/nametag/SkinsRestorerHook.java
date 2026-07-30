@@ -17,9 +17,7 @@ final class SkinsRestorerHook {
                 SkinApplyEvent.class,
                 event -> {
                     Player player = event.getPlayer(Player.class);
-                    Task.runEntity(player, () -> {
-                        nameTags.forceResendPassengers(player);
-                    }, 3L);
+                    Task.runEntity(player, () -> nameTags.forceResendPassengers(player), 3L);
                 }
         );
     }

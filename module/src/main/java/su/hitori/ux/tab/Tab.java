@@ -11,9 +11,12 @@ import net.minecraft.world.scores.*;
 import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.jspecify.annotations.Nullable;
+import su.hitori.api.Hitori;
 import su.hitori.api.Pair;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.nms.PacketBundleBuilder;
+import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.Pipeline;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
@@ -32,12 +35,34 @@ import static su.hitori.api.nms.NMSUtil.asNMS;
 public final class Tab {
 
     private static final Logger LOGGER = LoggerFactory.instance().create(Tab.class);
+    private static final @Nullable FoliaOnlyAPI FOLIA_ONLY_API;
 
     private static final String OBJECTIVE_NAME = "hitori_tab";
     private static final DynamicPlaceholder<Player>[] OBJECTIVE_PLACEHOLDERS = new DynamicPlaceholder[]{
             DynamicPlaceholder.create("player_name", Player::getName),
             DynamicPlaceholder.create("ping", Player::getPing)
     };
+
+    private static final DynamicPlaceholder<Player>[] HEADER_FOOTER_PLACEHOLDERS;
+
+    static {
+        if(Hitori.instance().serverCoreInfo().isFolia()) FOLIA_ONLY_API = new FoliaOnlyAPI();
+        else FOLIA_ONLY_API = null;
+
+        HEADER_FOOTER_PLACEHOLDERS = new DynamicPlaceholder[]{
+                DynamicPlaceholder.<Player>create("tps", player -> String.format(
+                        "%.1f",
+                        (FOLIA_ONLY_API == null ? Bukkit.getServer().getTPS() : FOLIA_ONLY_API.getRegionTPS(player.getLocation()))[0]
+                )),
+                DynamicPlaceholder.<Player>create("mspt", player -> String.format(
+                        "%.1f",
+                        FOLIA_ONLY_API == null ? Bukkit.getServer().getAverageTickTime() : FOLIA_ONLY_API.getRegionMSPT(player.getLocation())
+                )),
+                DynamicPlaceholder.<Player>create("online", _ -> Bukkit.getOnlinePlayers().size()),
+                DynamicPlaceholder.create("ping", Player::getPing),
+                DynamicPlaceholder.create("player_name", Player::getName)
+        };
+    }
 
     private final UXModule uxModule;
     private final Scoreboard scoreboard;
@@ -130,7 +155,7 @@ public final class Tab {
             update();
         }
         catch (Exception e) {
-            LOGGER.warning(e.getMessage());
+            LOGGER.warning(LoggerUtil.exceptionToString(e));
         }
     }
 
@@ -179,10 +204,6 @@ public final class Tab {
                     OBJECTIVE_PLACEHOLDERS
             ))));
         }
-
-        double tps = Bukkit.getTPS()[0];
-        double milliSecondsPerTick = Bukkit.getAverageTickTime();
-        int online = Bukkit.getOnlinePlayers().size();
 
         int maxIndexLength = String.valueOf(listSize).length();
 
@@ -234,23 +255,17 @@ public final class Tab {
             viewer.connection.send(builder.build());
 
             // update header and footer
-            Placeholder[] placeholders = {
-                    Placeholder.create("tps", () -> String.format("%.1f", tps)),
-                    Placeholder.create("mspt", () -> String.format("%.1f", milliSecondsPerTick)),
-                    Placeholder.create("online", () -> String.valueOf(online)),
-                    Placeholder.create("ping", entry.player::getPing),
-                    Placeholder.create("player_name", entry.player::getName)
-            };
             viewer.connection.send(new ClientboundTabListPacket(
-                    buildHeaderOrFooter(configuration.header, placeholders),
-                    buildHeaderOrFooter(configuration.footer, placeholders)
+                    buildHeaderOrFooter(configuration.header, entry.player, HEADER_FOOTER_PLACEHOLDERS),
+                    buildHeaderOrFooter(configuration.footer, entry.player, HEADER_FOOTER_PLACEHOLDERS)
             ));
         }
     }
 
-    private Component buildHeaderOrFooter(List<String> lines, Placeholder[] placeholders) {
-        return PaperAdventure.asVanilla(Text.create(Placeholders.resolve(
+    private Component buildHeaderOrFooter(List<String> lines, Player player, DynamicPlaceholder<Player>[] placeholders) {
+        return PaperAdventure.asVanilla(Text.create(Placeholders.resolveDynamic(
                 String.join("\n", lines),
+                player,
                 placeholders
         )));
     }

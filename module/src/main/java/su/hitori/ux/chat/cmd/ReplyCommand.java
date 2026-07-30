@@ -1,36 +1,44 @@
 package su.hitori.ux.chat.cmd;
 
-import dev.jorel.commandapi.CommandAPICommand;
-import dev.jorel.commandapi.arguments.GreedyStringArgument;
-import dev.jorel.commandapi.executors.CommandArguments;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import su.hitori.api.util.Messages;
 import su.hitori.ux.chat.Chat;
 import su.hitori.ux.config.UXConfiguration;
 
-public final class ReplyCommand extends CommandAPICommand {
+import java.util.Collection;
+import java.util.List;
 
-    private final Chat chat;
+public final class ReplyCommand {
 
-    public ReplyCommand(Chat chat) {
-        super("reply");
-        this.chat = chat;
+    private ReplyCommand() {}
 
-        withAliases("r");
-        withArguments(new GreedyStringArgument("message"));
-        executesPlayer(this::execute);
-    }
+    public static Collection<LiteralCommandNode<CommandSourceStack>> bootstrap(Chat chat) {
+        LiteralCommandNode<CommandSourceStack> command = Commands.literal("reply")
+                .requires(source -> source.getSender() instanceof Player)
+                .then(Commands.argument("message", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            Player sender = (Player) context.getSource().getSender();
+                            String receiverName = chat.getLastDM(sender);
+                            Player receiver;
+                            if(receiverName == null || (receiver = Bukkit.getPlayer(receiverName)) == null) {
+                                sender.sendMessage(Messages.ERROR.create(UXConfiguration.I.chat.directMessages.noRecentMessage));
+                                return 0;
+                            }
 
-    private void execute(Player sender, CommandArguments args) {
-        String receiverName = chat.getLastDM(sender);
-        Player receiver;
-        if(receiverName == null || (receiver = Bukkit.getPlayer(receiverName)) == null) {
-            sender.sendMessage(Messages.ERROR.create(UXConfiguration.I.chat.directMessages.noRecentMessage));
-            return;
-        }
+                            chat.sendDirectMessage(sender, receiver, context.getArgument("message", String.class));
+                            return 1;
+                        }))
+                .build();
 
-        chat.sendDirectMessage(sender, receiver, args.getUnchecked("message"));
+        return List.of(
+                command,
+                Commands.literal("reply").redirect(command).build()
+        );
     }
 
 }

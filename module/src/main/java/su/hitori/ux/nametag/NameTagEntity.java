@@ -133,10 +133,11 @@ final class NameTagEntity {
         textDisplay.setSeeThrough(!player.isSneaking());
     }
 
-    void remove() {
+    void remove(boolean removeEntity) {
         if(textDisplay != null) {
             player.removePassenger(textDisplay);
-            textDisplay.remove();
+
+            if(removeEntity) textDisplay.remove();
         }
     }
 
