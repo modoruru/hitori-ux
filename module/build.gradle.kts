@@ -42,9 +42,23 @@ tasks {
 }
 
 extensions.configure<PublishingExtension> {
+    repositories {
+        maven {
+            name = "modoruReleases"
+            url = uri("https://repository.modoru.fun/releases")
+
+            credentials {
+                username = System.getenv("MODORU_USERNAME") ?: ""
+                password = System.getenv("MODORU_TOKEN") ?: ""
+            }
+        }
+    }
+
     publications {
         create<MavenPublication>("maven") {
             artifactId = "module"
+            group = "su.hitori.ux"
+            version = rootProject.version.toString()
 
             artifact(tasks.named("shadowJar"))
             artifact(tasks.named("sourcesJar"))

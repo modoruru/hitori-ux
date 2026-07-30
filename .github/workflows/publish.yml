@@ -1,0 +1,35 @@
+name: Publish to modoru releases
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Actions checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'oracle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@417ae3ccd767c252f5661f1ace9f835f9654f2b5 # v3.1.0
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Publish to modoru releases
+        env:
+          MODORU_USERNAME: ${{ secrets.MODORU_USERNAME }}
+          MODORU_TOKEN: ${{ secrets.MODORU_TOKEN }}
+        run: |
+          ./gradlew publish

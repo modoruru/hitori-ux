@@ -23,45 +23,41 @@ Also, you can get module from [Releases](https://github.com/modoruru/hitori-ux/r
 After downloading the jar, just put it into hitori folder. Then restart the server.
 
 ## API
-You may need to use Storage or other API's of this module.\
-So, this module is published via [JitPack](https://jitpack.io/)
-
-Latest version: [![](https://jitpack.io/v/modoruru/hitori-ux.svg)](https://jitpack.io/#modoruru/hitori-ux)
+You may need to use Storage or other API's of this module.
 
 <details>
 <summary>maven</summary>
 
 ```xml
-	<repositories>
-		<repository>
-		    <id>jitpack.io</id>
-		    <url>https://jitpack.io</url>
-		</repository>
-	</repositories>
+<repository>
+  <id>modoru-releases</id>
+  <name>modoru repository</name>
+  <url>https://repository.modoru.fun/releases</url>
+</repository>
 ```
 
 ```xml
-	<dependency>
-	    <groupId>com.github.modoruru.hitori-ux</groupId>
-	    <artifactId>module</artifactId>
-	    <version>version</version>
-	</dependency>
+<dependency>
+  <groupId>su.hitori.ux</groupId>
+  <artifactId>module</artifactId>
+  <version>1.2.2</version>
+</dependency>
 ```
 </details>
 <details>
 <summary>gradle</summary>
 
 ```groovy
-repositories {
-    // ...
-    maven { url 'https://jitpack.io' }
+maven {
+  name = "modoruReleases"
+  url = uri("https://repository.modoru.fun/releases")
 }
 ```
 
 ```groovy
 dependencies {
-    // ...
-    implementation 'com.github.modoruru.hitori-ux:module:version'
+  // ...
+  implementation 'su.hitori.ux:module:1.2.2'
 }
 ```
 </details>

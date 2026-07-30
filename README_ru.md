@@ -23,45 +23,41 @@
 После скачивания jar, просто поместите его в папку hitori. После, перезагрузите сервер.
 
 ## API
-Возможно, вам потребуется использовать хранилище или другие API этого модуля.\
-Поэтому, модуль опубликован через [JitPack](https://jitpack.io/)
-
-Последняя версия: [![](https://jitpack.io/v/modoruru/hitori-ux.svg)](https://jitpack.io/#modoruru/hitori-ux)
+Возможно, вам потребуется использовать хранилище или другие API этого модуля.
 
 <details>
 <summary>maven</summary>
 
 ```xml
-	<repositories>
-		<repository>
-		    <id>jitpack.io</id>
-		    <url>https://jitpack.io</url>
-		</repository>
-	</repositories>
+<repository>
+  <id>modoru-releases</id>
+  <name>modoru repository</name>
+  <url>https://repository.modoru.fun/releases</url>
+</repository>
 ```
 
 ```xml
-	<dependency>
-	    <groupId>com.github.modoruru.hitori-ux</groupId>
-	    <artifactId>module</artifactId>
-	    <version>version</version>
-	</dependency>
+<dependency>
+  <groupId>su.hitori.ux</groupId>
+  <artifactId>module</artifactId>
+  <version>1.2.2</version>
+</dependency>
 ```
 </details>
 <details>
 <summary>gradle</summary>
 
 ```groovy
-repositories {
-    // ...
-    maven { url 'https://jitpack.io' }
+maven {
+  name = "modoruReleases"
+  url = uri("https://repository.modoru.fun/releases")
 }
 ```
 
 ```groovy
 dependencies {
-    // ...
-    implementation 'com.github.modoruru.hitori-ux:module:version:version'
+  // ...
+  implementation 'su.hitori.ux:module:1.2.2'
 }
 ```
 </details>
