@@ -38,4 +38,4 @@ jobs:
         with:
           name: artifact
           path: module/build/libs/ux-*.jar
-          retention-days: 3
+          retention-days: 1
