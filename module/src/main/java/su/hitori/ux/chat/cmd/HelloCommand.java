@@ -13,7 +13,7 @@ public final class HelloCommand {
     private HelloCommand() {}
 
     public static LiteralCommandNode<CommandSourceStack> bootstrap(Chat chat) {
-        return Commands.literal("helo")
+        return Commands.literal("hello")
                 .requires(source -> source.getSender() instanceof Player)
                 .then(Commands.argument("player", ArgumentTypes.player())
                         .executes(context -> {

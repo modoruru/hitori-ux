@@ -234,7 +234,7 @@ public class RemoteStorage implements Storage<RemoteDataContainer> {
 
         Player player = getPlayerByIdentifier(identifier);
         if(player != null)
-            Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 0L);
+            Task.async(() -> Bukkit.getPluginManager().callEvent(new AsyncPlayerSynchronizationEvent(player, container)), 1L);
 
         return container;
     }

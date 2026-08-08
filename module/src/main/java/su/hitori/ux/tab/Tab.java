@@ -50,13 +50,18 @@ public final class Tab {
         else FOLIA_ONLY_API = null;
 
         HEADER_FOOTER_PLACEHOLDERS = new DynamicPlaceholder[]{
-                DynamicPlaceholder.<Player>create("tps", player -> String.format(
-                        "%.1f",
-                        (FOLIA_ONLY_API == null ? Bukkit.getServer().getTPS() : FOLIA_ONLY_API.getRegionTPS(player.getLocation()))[0]
-                )),
+                DynamicPlaceholder.<Player>create("tps", player -> {
+                    double[] array;
+                    if(FOLIA_ONLY_API == null) array = Bukkit.getServer().getTPS();
+                    else array = FOLIA_ONLY_API.getRegionTPS(player.getLocation());
+
+                    return String.format("%.1f", array[0]);
+                }),
                 DynamicPlaceholder.<Player>create("mspt", player -> String.format(
                         "%.1f",
-                        FOLIA_ONLY_API == null ? Bukkit.getServer().getAverageTickTime() : FOLIA_ONLY_API.getRegionMSPT(player.getLocation())
+                        FOLIA_ONLY_API == null
+                                ? Bukkit.getServer().getAverageTickTime()
+                                : FOLIA_ONLY_API.getRegionMSPT(player.getLocation())
                 )),
                 DynamicPlaceholder.<Player>create("online", _ -> Bukkit.getOnlinePlayers().size()),
                 DynamicPlaceholder.create("ping", Player::getPing),
