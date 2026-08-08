@@ -43,15 +43,20 @@ public final class IgnoreCommand {
 
     public static LiteralCommandNode<CommandSourceStack> bootstrap(UXModule uxModule, boolean newIgnoringState) {
         IgnoreCommand ignoreCommand = new IgnoreCommand(uxModule, newIgnoringState);
-        return Commands.literal(newIgnoringState ? "ignore" : "unignore")
+
+        var builder = Commands.literal(newIgnoringState ? "ignore" : "unignore")
                 .requires(source -> source.getSender() instanceof Player)
-                .then(Commands.literal("list")
-                        .executes(ignoreCommand::list))
                 .then(Commands.literal("dm")
                         .then(playerIgnoringArgument(ignoreCommand, IgnoringType.DIRECT_MESSAGES)))
                 .then(Commands.literal("chat")
-                        .then(playerIgnoringArgument(ignoreCommand, IgnoringType.CHAT)))
-                .build();
+                        .then(playerIgnoringArgument(ignoreCommand, IgnoringType.CHAT)));
+
+        if(newIgnoringState) {
+            builder.then(Commands.literal("list")
+                    .executes(ignoreCommand::list));
+        }
+
+        return builder.build();
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, String> playerIgnoringArgument(IgnoreCommand ignoreCommand, IgnoringType ignoringType) {
