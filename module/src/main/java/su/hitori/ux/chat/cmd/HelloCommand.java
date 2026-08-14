@@ -14,11 +14,12 @@ public final class HelloCommand {
 
     public static LiteralCommandNode<CommandSourceStack> bootstrap(Chat chat) {
         return Commands.literal("hello")
-                .requires(source -> source.getSender() instanceof Player)
                 .then(Commands.argument("player", ArgumentTypes.player())
                         .executes(context -> {
+                            if(!(context.getSource().getSender() instanceof Player sender)) return 0;
+
                             PlayerSelectorArgumentResolver resolver = context.getArgument("player", PlayerSelectorArgumentResolver.class);
-                            chat.sendHello((Player) context.getSource().getSender(), resolver.resolve(context.getSource()).getFirst());
+                            chat.sendHello(sender, resolver.resolve(context.getSource()).getFirst());
                             return 1;
                         }))
                 .build();

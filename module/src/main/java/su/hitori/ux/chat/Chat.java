@@ -304,7 +304,7 @@ public final class Chat {
 
             indexThreshold = index + formattedMentionLength;
 
-            content.replace(index, substringLength + 1, formattedMention);
+            content.replace(index, index + substringLength, formattedMention);
         }
 
         if(indexThreshold != 0 && mentioned != null) mentioned.add(player);
