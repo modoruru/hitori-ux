@@ -205,26 +205,34 @@ public final class Chat {
         }
 
         // URL Processing
+        // todo: rewrite this for 2.0.0
         Matcher urlMatcher = BOXED_URL_PATTERN.matcher(contentBuilder);
         if(urlMatcher.find() && validateURL(urlMatcher.group("url"))) {
+            String prefix = urlMatcher.group("prefix");
             String url = urlMatcher.group("url");
+            String text = urlMatcher.group("text");
+            String suffix = urlMatcher.group("suffix");
+
             contentBuilder.delete(0, contentBuilder.length());
             contentBuilder.insert(0, String.format(
                     BOXED_URL_FORMAT,
-                    urlMatcher.group("prefix"),
+                    prefix,
                     url, url,
-                    urlMatcher.group("text"),
-                    urlMatcher.group("suffix")
+                    text,
+                    suffix
             ));
         }
         else if((urlMatcher = URL_PATTERN.matcher(contentBuilder)).find() && validateURL(urlMatcher.group("url"))) {
+            String prefix = urlMatcher.group("prefix");
             String url = urlMatcher.group("url");
+            String suffix = urlMatcher.group("suffix");
+
             contentBuilder.delete(0, contentBuilder.length());
             contentBuilder.insert(0, String.format(
                     URL_FORMAT,
-                    urlMatcher.group("prefix"),
+                    prefix,
                     url, url, url,
-                    urlMatcher.group("suffix")
+                    suffix
             ));
         }
 

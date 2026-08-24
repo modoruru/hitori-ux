@@ -18,7 +18,7 @@ public final class ReplyCommand {
     private ReplyCommand() {}
 
     public static Collection<LiteralCommandNode<CommandSourceStack>> bootstrap(Chat chat) {
-        LiteralCommandNode<CommandSourceStack> command = Commands.literal("reply")
+        LiteralCommandNode<CommandSourceStack> command = Commands.literal("r")
                 .requires(source -> source.getSender() instanceof Player)
                 .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(context -> {
