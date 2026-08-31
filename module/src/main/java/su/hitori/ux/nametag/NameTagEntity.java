@@ -100,8 +100,6 @@ final class NameTagEntity {
             if(textDisplay != null) {
                 textDisplay.remove();
                 textDisplay = null;
-                task.cancel();
-                task = null;
             }
             return;
         }
