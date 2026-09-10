@@ -12,6 +12,7 @@ import su.hitori.api.module.ModuleDescriptor;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class NameTags {
@@ -20,7 +21,7 @@ public final class NameTags {
 
     private final AtomicReference<ModuleDescriptor> resourcePackModuleReference;
     final PlayerTeam playerTeam;
-    final Map<Player, NameTagEntity> tags;
+    final Map<UUID, NameTagEntity> tags;
 
     private SkinsRestorerHook skinsRestorerHook;
     long lastTeamUpdate;
@@ -84,26 +85,26 @@ public final class NameTags {
 
         if(skinsRestorerHook != null) skinsRestorerHook.unregister();
     }
-    
+
     void track(Player player) {
-        if(tags.containsKey(player)) return;
-        tags.put(player, NameTagEntity.create(this, player));
+        if(tags.containsKey(player.getUniqueId())) return;
+        tags.put(player.getUniqueId(), NameTagEntity.create(this, player));
         lastTeamUpdate = System.currentTimeMillis();
     }
-    
+
     void untrack(Player player) {
-        NameTagEntity nameTagEntity = tags.remove(player);
+        NameTagEntity nameTagEntity = tags.remove(player.getUniqueId());
         if(nameTagEntity == null) return;
         nameTagEntity.remove(true);
     }
 
     void forceUpdate(Player player) {
-        NameTagEntity nameTagEntity = tags.get(player);
+        NameTagEntity nameTagEntity = tags.get(player.getUniqueId());
         if(nameTagEntity != null) nameTagEntity.update(playerTeam, lastTeamUpdate > nameTagEntity.lastTeamUpdate);
     }
 
     void forceResendPassengers(Player player) {
-        NameTagEntity nameTagEntity = tags.get(player);
+        NameTagEntity nameTagEntity = tags.get(player.getUniqueId());
         if(nameTagEntity != null) nameTagEntity.resendPassengers();
     }
 
