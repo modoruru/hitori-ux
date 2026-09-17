@@ -24,6 +24,7 @@ tasks {
         archiveClassifier.set("")
 
         relocate("org.java_websocket", "su.hitori.ux.shaded.websocket")
+        relocate("org.h2", "su.hitori.ux.shaded.h2")
 
         dependencies {
             exclude(dependency("org.slf4j:slf4j-api:.*"))
