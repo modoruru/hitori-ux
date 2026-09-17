@@ -1,0 +1,19 @@
+{
+  "key": "hitori:ux",
+  "version": "${version}",
+  "main": "su.hitori.ux.UXModule",
+  "packages": [
+    "su.hitori.ux"
+  ],
+
+  "description": "UX (User experience) module",
+
+  "depends": {
+    "java": ">=25",
+    "hitori": ">=2.0.0",
+    "hitori:resourcepack": {
+      "type": "soft",
+      "version": ">=1.1.4"
+    }
+  }
+}

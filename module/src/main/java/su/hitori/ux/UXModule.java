@@ -73,11 +73,13 @@ public final class UXModule extends Module {
     @Override
     public void setupCompatibility(CompatibilityLayer compatibilityLayer) {
         Key key = Key.key("hitori", "resourcepack");
-        compatibilityLayer.addEnableHook(key,
-                () -> Hitori.instance().moduleRepository()
-                        .getModule(key)
-                        .ifPresent(resourcePackModuleReference::set)
-        );
+        if(compatibilityLayer.compatible(key) == Boolean.TRUE) {
+            compatibilityLayer.addEnableHook(key,
+                    () -> Hitori.instance().moduleRepository()
+                            .getModule(key)
+                            .ifPresent(resourcePackModuleReference::set)
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -78,7 +78,7 @@ public final class NameTags {
         boolean serverStopping = Bukkit.isStopping();
 
         for (NameTagEntity nameTagEntity : tags.values()) {
-            if(serverStopping) nameTagEntity.textDisplay.getPersistentDataContainer().set(FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
+            if(serverStopping && nameTagEntity.textDisplay != null) nameTagEntity.textDisplay.getPersistentDataContainer().set(FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
             nameTagEntity.remove(!serverStopping);
         }
         tags.clear();

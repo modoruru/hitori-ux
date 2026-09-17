@@ -35,7 +35,7 @@ tasks {
     }
 
     processResources {
-        filesMatching("hitori.properties") {
+        filesMatching("hitori.module.json") {
             expand("version" to rootProject.version)
         }
     }
