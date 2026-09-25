@@ -11,6 +11,7 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
@@ -112,6 +113,7 @@ final class NameTagEntity {
         if(lying) {
             player.removePassenger(textDisplay);
             textDisplay.teleportAsync(player.getLocation().add(0, 1, 0));
+            textDisplay.getPersistentDataContainer().set(NameTags.FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
         }
         else if(player.getPassengers().isEmpty())
             player.addPassenger(textDisplay);
