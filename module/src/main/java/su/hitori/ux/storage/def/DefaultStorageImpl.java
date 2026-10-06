@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import org.json.JSONObject;
 import su.hitori.api.logging.LoggerFactory;
 import su.hitori.api.util.Either;
+import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.storage.DataField;
@@ -102,7 +103,7 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
         // TODO: check if this is not just late call. maybe check fields are registered by modules?
 
         LOGGER.warning("Late call for scheme change is made! This probably happens when another module adding fields after reload. They will be reinitialized.");
-        // if module is requested another add - its probably because module reloaded and ux module is not
+        // if the module invoked another add-on, this likely happened because that module was reloaded while the UX module was not
         // well reinitialize this fields
 
         Set<DataField<?>> fieldsSet = new HashSet<>(Arrays.asList(fields));
@@ -175,8 +176,10 @@ public final class DefaultStorageImpl implements Storage<DefaultDataContainerImp
                 throw new RuntimeException("Got a problem while loading database.", e);
             }
         }, executorService).whenComplete((_, error) -> {
-            if(error != null)
+            if(error != null) {
                 closed = true;
+                LOGGER.warning(LoggerUtil.exceptionToString(error));
+            }
             openFuture.complete(null);
         });
     }
