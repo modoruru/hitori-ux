@@ -1,16 +1,17 @@
 package su.hitori.ux.tab;
 
 import net.minecraft.network.chat.numbers.NumberFormat;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket;
 import net.minecraft.world.scores.PlayerTeam;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.Nullable;
 import su.hitori.api.Pair;
 import su.hitori.api.util.Pipeline;
 import su.hitori.ux.storage.DataContainer;
 
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 public final class TabEntry implements Comparable<TabEntry> {
@@ -20,10 +21,16 @@ public final class TabEntry implements Comparable<TabEntry> {
     final Pipeline<Comparator<TabEntry>> sorters;
     final Predicate<Player> listedPredicate;
     final Set<TabEntry> unlisted;
-    final Set<PlayerTeam> fakeTeams;
+    final Map<String, UUID> fakeTeams;
 
     boolean initialized;
     NumberFormat objectiveValue;
+
+    @Nullable String teamName;
+    @Nullable PlayerTeam team;
+    boolean freshTeamName = true;
+    @Nullable ClientboundSetPlayerTeamPacket teamAddPacket;
+    @Nullable ClientboundPlayerInfoUpdatePacket updateDisplayNamePacket;
 
     TabEntry(Player player, DataContainer container, Pipeline<Comparator<TabEntry>> sorters, Predicate<Player> listedPredicate) {
         this.player = player;
@@ -31,7 +38,7 @@ public final class TabEntry implements Comparable<TabEntry> {
         this.sorters = sorters;
         this.listedPredicate = listedPredicate;
         this.unlisted = new HashSet<>();
-        this.fakeTeams = new HashSet<>();
+        this.fakeTeams = new HashMap<>();
     }
 
     public Player player() {

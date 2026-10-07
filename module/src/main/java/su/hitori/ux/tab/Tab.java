@@ -1,5 +1,6 @@
 package su.hitori.ux.tab;
 
+import com.google.common.collect.ImmutableList;
 import io.papermc.paper.adventure.PaperAdventure;
 import net.kyori.adventure.key.Key;
 import net.minecraft.network.chat.Component;
@@ -27,6 +28,7 @@ import su.hitori.ux.placeholder.Placeholder;
 import su.hitori.ux.placeholder.Placeholders;
 import su.hitori.ux.storage.DataContainer;
 
+import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -122,37 +124,40 @@ public final class Tab {
         Bukkit.getOnlinePlayers().forEach(this::addPlayer);
     }
 
+    private static ClientboundSetPlayerTeamPacket createRemovePacket(String teamName) {
+        try {
+            Constructor<ClientboundSetPlayerTeamPacket> constructor = ClientboundSetPlayerTeamPacket.class.getDeclaredConstructor(String.class, int.class, Optional.class, Collection.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(teamName, 1, Optional.empty(), ImmutableList.of());
+        }
+        catch (Throwable throwable) {
+            throw new RuntimeException(throwable);
+        }
+    }
+
     public void stop() {
         if(task == null) return;
 
         Objective objective = scoreboard.getObjective(OBJECTIVE_NAME);
         assert objective != null;
 
-        for (TabEntry value : tabEntries.values()) {
-            clearFakeTeams(value);
-
-            if(value.initialized) {
-                asNMS(value.player).connection.send(new ClientboundSetObjectivePacket(
+        for (TabEntry entry : tabEntries.values()) {
+            ServerPlayer serverPlayer = asNMS(entry.player);
+            if(entry.initialized) {
+                serverPlayer.connection.send(new ClientboundSetObjectivePacket(
                         objective,
                         ClientboundSetObjectivePacket.METHOD_REMOVE
                 ));
             }
+
+            for (String team : entry.fakeTeams.keySet()) {
+                serverPlayer.connection.send(createRemovePacket(team));
+            }
+            entry.fakeTeams.clear();
         }
         tabEntries.clear();
         task.cancel();
         task = null;
-    }
-
-    private void clearFakeTeams(TabEntry entry) {
-        if(entry.fakeTeams.isEmpty()) return;
-
-        PacketBundleBuilder builder = new PacketBundleBuilder();
-        for (PlayerTeam oldTeam : entry.fakeTeams) {
-            builder.add(ClientboundSetPlayerTeamPacket.createRemovePacket(oldTeam));
-        }
-        entry.fakeTeams.clear();
-
-        asNMS(entry.player).connection.connection.send(builder.build());
     }
 
     private void updateAsync() {
@@ -169,7 +174,7 @@ public final class Tab {
         list.sort(TabEntry::compareTo);
 
         int listSize = list.size();
-
+        int maxIndexLength = String.valueOf(listSize).length();
         String objectiveFormat = configuration.objective;
 
         // At first: update tab name for each player
@@ -177,92 +182,96 @@ public final class Tab {
             TabEntry entry = list.get(i);
             Player player = entry.player;
 
+            String playerName = player.getName();
+            String teamName = String.format("%0" + maxIndexLength + "d", i);
+            if(!teamName.equalsIgnoreCase(entry.teamName)) {
+                entry.freshTeamName = true;
+                entry.teamName = teamName;
+
+                PlayerTeam team = new PlayerTeam(scoreboard, teamName);
+                team.setNameTagVisibility(Team.Visibility.NEVER);
+                team.getPlayers().add(playerName);
+                entry.team = team;
+                entry.teamAddPacket = ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(team, true);
+            }
+
             ServerPlayer serverPlayer = asNMS(player);
             serverPlayer.listName = PaperAdventure.asVanilla(Text.create(Placeholders.resolve(
                     configuration.playerName,
                     Placeholder.create("player_name", player::getName),
                     Placeholder.createFinal("sort_order", String.valueOf(i + 1))
             )));
+            entry.updateDisplayNamePacket = new ClientboundPlayerInfoUpdatePacket(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME, serverPlayer);
 
-            if(objectiveFormat.isEmpty()) {
-                entry.objectiveValue = null;
-                continue;
+            if(objectiveFormat.isEmpty()) entry.objectiveValue = null;
+            else {
+                Objective objective = scoreboard.getObjective(OBJECTIVE_NAME);
+                assert objective != null;
+                if(!entry.initialized) {
+                    serverPlayer.connection.send(new ClientboundSetObjectivePacket(
+                            objective,
+                            ClientboundSetObjectivePacket.METHOD_ADD
+                    ));
+                    serverPlayer.connection.send(new ClientboundSetDisplayObjectivePacket(
+                            DisplaySlot.LIST,
+                            objective
+                    ));
+                    entry.initialized = true;
+                }
+
+                entry.objectiveValue = new FixedFormat(PaperAdventure.asVanilla(Text.create(Placeholders.resolveDynamic(
+                        objectiveFormat,
+                        player,
+                        OBJECTIVE_PLACEHOLDERS
+                ))));
             }
 
-            Objective objective = scoreboard.getObjective(OBJECTIVE_NAME);
-            assert objective != null;
-            if(!entry.initialized) {
-                serverPlayer.connection.send(new ClientboundSetObjectivePacket(
-                        objective,
-                        ClientboundSetObjectivePacket.METHOD_ADD
-                ));
-                serverPlayer.connection.send(new ClientboundSetDisplayObjectivePacket(
-                        DisplaySlot.LIST,
-                        objective
-                ));
-                entry.initialized = true;
-            }
+            for (int j = 0; j < listSize; j++) {
+                PacketBundleBuilder builder = new PacketBundleBuilder();
 
-            entry.objectiveValue = new FixedFormat(PaperAdventure.asVanilla(Text.create(Placeholders.resolveDynamic(
-                    objectiveFormat,
-                    player,
-                    OBJECTIVE_PLACEHOLDERS
-            ))));
-        }
-
-        int maxIndexLength = String.valueOf(listSize).length();
-
-        for (TabEntry entry : list) {
-            // Clear old team data
-            clearFakeTeams(entry);
-
-            PacketBundleBuilder builder = new PacketBundleBuilder();
-
-            // iterate through every entry for every player
-            for (int i = 0; i < listSize; i++) {
-                TabEntry other = list.get(i);
-                Player player = other.player;
-                ServerPlayer serverPlayer = asNMS(player);
-                if(entry != other) {
-                    Pair<Boolean, Boolean> listed = other.isListed(entry);
+                TabEntry viewerEntry = list.get(j);
+                Player viewer = viewerEntry.player;
+                if(viewerEntry != entry) {
+                    Pair<Boolean, Boolean> listed = entry.isListed(viewerEntry);
                     if(listed.first())
                         builder.add(ClientboundPlayerInfoUpdatePacket.updateListed(player.getUniqueId(), listed.second()));
 
                     if(!listed.second()) continue;
                 }
 
-                String playerName = player.getName();
-                String teamName = String.format("%0" + maxIndexLength + "d", i);
+                if(entry.freshTeamName) {
+                    UUID oldOwner = viewerEntry.fakeTeams.put(entry.teamName, player.getUniqueId());
+                    if(oldOwner != null) {
+                        assert entry.team != null;
+                        builder.add(ClientboundSetPlayerTeamPacket.createRemovePacket(entry.team));
+                    }
 
-                PlayerTeam team = new PlayerTeam(scoreboard, teamName);
-                team.setNameTagVisibility(Team.Visibility.NEVER);
-                team.getPlayers().add(playerName);
-                entry.fakeTeams.add(team);
+                    assert entry.teamAddPacket != null;
+                    builder.add(entry.teamAddPacket);
+                }
 
-                builder.add(ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(team, true));
-                builder.add(new ClientboundPlayerInfoUpdatePacket(
-                        ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME,
-                        serverPlayer
-                ));
+                assert entry.updateDisplayNamePacket != null;
+                builder.add(entry.updateDisplayNamePacket);
 
-                if(entry.initialized) {
+                if(viewerEntry.initialized) {
                     builder.add(new ClientboundSetScorePacket(
                             playerName,
                             OBJECTIVE_NAME,
                             1,
                             Optional.empty(),
-                            Optional.ofNullable(other.objectiveValue)
+                            Optional.ofNullable(entry.objectiveValue)
                     ));
                 }
+
+                asNMS(viewer).connection.send(builder.build());
             }
 
-            ServerPlayer viewer = asNMS(entry.player);
-            viewer.connection.send(builder.build());
+            entry.freshTeamName = false;
 
             // update header and footer
-            viewer.connection.send(new ClientboundTabListPacket(
-                    buildHeaderOrFooter(configuration.header, entry.player, HEADER_FOOTER_PLACEHOLDERS),
-                    buildHeaderOrFooter(configuration.footer, entry.player, HEADER_FOOTER_PLACEHOLDERS)
+            asNMS(player).connection.send(new ClientboundTabListPacket(
+                    buildHeaderOrFooter(configuration.header, player, HEADER_FOOTER_PLACEHOLDERS),
+                    buildHeaderOrFooter(configuration.footer, player, HEADER_FOOTER_PLACEHOLDERS)
             ));
         }
     }

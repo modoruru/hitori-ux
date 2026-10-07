@@ -17,20 +17,20 @@ public final class OpenSharedInventoryCommand {
 
     public static LiteralCommandNode<CommandSourceStack> bootstrap(Chat chat) {
         return Commands.literal("sharedinventory")
-                .requires(source -> source.getSender() instanceof Player)
                 .then(Commands.argument("uuid", ArgumentTypes.uuid())
                         .executes(context -> openSharedInventory(chat, context)))
                 .build();
     }
 
     private static int openSharedInventory(Chat chat, CommandContext<CommandSourceStack> context) {
+        if(!(context.getSource().getSender() instanceof Player player)) return 0;
         SharedInventoryContainer sharedInventory = chat.getSharedInventory(context.getArgument("uuid", UUID.class));
         if(sharedInventory == null) {
             // todo: add error message
             return 0;
         }
 
-        ((Player) context.getSource().getSender()).openInventory(sharedInventory.getInventory());
+        player.openInventory(sharedInventory.getInventory());
         return 1;
     }
 

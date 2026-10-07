@@ -20,7 +20,7 @@ public final class SharedInventoryContainer implements Container {
 
     SharedInventoryContainer(Player player) {
         uuid = UUID.randomUUID();
-        inventory = Bukkit.createInventory(this, 36, Text.create(player.getName() + " inventory"));
+        inventory = Bukkit.createInventory(this, 36, Text.create(player.getName() + "'s inventory"));
 
         PlayerInventory playerInventory = player.getInventory();
         for (int i = 0; i < 36; i++) {
