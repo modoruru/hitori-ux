@@ -34,6 +34,7 @@ final class NameTagEntity {
     Task task;
 
     long lastTeamUpdate;
+    boolean prevLyingState;
     boolean initialized;
 
     NameTagEntity(NameTags nameTags, Player player, ServerPlayer serverPlayer, TextDisplay textDisplay) {
@@ -110,13 +111,16 @@ final class NameTagEntity {
             createTask();
         }
 
-        if(lying) {
+        if(lying && !prevLyingState) {
+            prevLyingState = true;
             player.removePassenger(textDisplay);
             textDisplay.teleportAsync(player.getLocation().add(0, 1, 0));
             textDisplay.getPersistentDataContainer().set(NameTags.FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
         }
-        else if(player.getPassengers().isEmpty())
+        else if(player.getPassengers().isEmpty()) {
             player.addPassenger(textDisplay);
+            prevLyingState = false;
+        }
 
         Location location = player.getLocation();
         if(location.getWorld() != textDisplay.getWorld()) {
@@ -139,6 +143,7 @@ final class NameTagEntity {
 
             if(removeEntity) textDisplay.remove();
         }
+        if(task != null) task.cancel();
     }
 
 }
