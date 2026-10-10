@@ -40,7 +40,7 @@ You may need to use Storage or other API's of this module.
 <dependency>
   <groupId>su.hitori.ux</groupId>
   <artifactId>module</artifactId>
-  <version>1.2.2</version>
+  <version>1.3.3</version>
 </dependency>
 ```
 </details>
@@ -57,7 +57,7 @@ maven {
 ```groovy
 dependencies {
   // ...
-  implementation 'su.hitori.ux:module:1.2.2'
+  implementation 'su.hitori.ux:module:1.3.3'
 }
 ```
 </details>
