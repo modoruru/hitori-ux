@@ -26,7 +26,7 @@ public final class TabEntry implements Comparable<TabEntry> {
     boolean initialized;
     NumberFormat objectiveValue;
 
-    @Nullable String teamName;
+    @Nullable String teamName, previousTeamName;
     @Nullable PlayerTeam team;
     boolean freshTeamName = true;
     @Nullable ClientboundSetPlayerTeamPacket teamAddPacket;

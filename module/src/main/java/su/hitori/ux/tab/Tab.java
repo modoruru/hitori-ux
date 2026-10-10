@@ -16,7 +16,6 @@ import org.jspecify.annotations.Nullable;
 import su.hitori.api.Hitori;
 import su.hitori.api.Pair;
 import su.hitori.api.logging.LoggerFactory;
-import su.hitori.api.nms.PacketBundleBuilder;
 import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.Pipeline;
 import su.hitori.api.util.Task;
@@ -169,6 +168,15 @@ public final class Tab {
         }
     }
 
+    private void removeTeamFromViewers(String teamName, Collection<TabEntry> viewers) {
+        ClientboundSetPlayerTeamPacket packet = createRemovePacket(teamName);
+
+        for (TabEntry viewer : viewers) {
+            asNMS(viewer.player).connection.send(packet);
+            viewer.fakeTeams.remove(teamName);
+        }
+    }
+
     private void update() {
         List<TabEntry> list = new ArrayList<>(tabEntries.values());
         list.sort(TabEntry::compareTo);
@@ -177,7 +185,6 @@ public final class Tab {
         int maxIndexLength = String.valueOf(listSize).length();
         String objectiveFormat = configuration.objective;
 
-        // At first: update tab name for each player
         for (int i = 0; i < listSize; i++) {
             TabEntry entry = list.get(i);
             Player player = entry.player;
@@ -186,6 +193,7 @@ public final class Tab {
             String teamName = String.format("%0" + maxIndexLength + "d", i);
             if(!teamName.equalsIgnoreCase(entry.teamName)) {
                 entry.freshTeamName = true;
+                entry.previousTeamName = entry.teamName;
                 entry.teamName = teamName;
 
                 PlayerTeam team = new PlayerTeam(scoreboard, teamName);
@@ -226,36 +234,36 @@ public final class Tab {
                 ))));
             }
 
-            for (int j = 0; j < listSize; j++) {
-                PacketBundleBuilder builder = new PacketBundleBuilder();
+            asNMS(player).connection.send(new ClientboundTabListPacket(
+                    buildHeaderOrFooter(configuration.header, player, HEADER_FOOTER_PLACEHOLDERS),
+                    buildHeaderOrFooter(configuration.footer, player, HEADER_FOOTER_PLACEHOLDERS)
+            ));
+        }
 
-                TabEntry viewerEntry = list.get(j);
-                Player viewer = viewerEntry.player;
+        // remove teams old info
+        for (TabEntry entry : list) {
+            if (entry.previousTeamName != null && entry.freshTeamName)
+                removeTeamFromViewers(entry.previousTeamName, list);
+        }
+
+        for (TabEntry entry : list) {
+            for (TabEntry viewerEntry : list) {
+                var viewerConnection = asNMS(viewerEntry.player).connection;
+
                 if(viewerEntry != entry) {
                     Pair<Boolean, Boolean> listed = entry.isListed(viewerEntry);
                     if(listed.first())
-                        builder.add(ClientboundPlayerInfoUpdatePacket.updateListed(player.getUniqueId(), listed.second()));
+                        viewerConnection.send(ClientboundPlayerInfoUpdatePacket.updateListed(entry.player.getUniqueId(), listed.second()));
 
                     if(!listed.second()) continue;
                 }
 
-                if(entry.freshTeamName) {
-                    UUID oldOwner = viewerEntry.fakeTeams.put(entry.teamName, player.getUniqueId());
-                    if(oldOwner != null) {
-                        assert entry.team != null;
-                        builder.add(ClientboundSetPlayerTeamPacket.createRemovePacket(entry.team));
-                    }
-
-                    assert entry.teamAddPacket != null;
-                    builder.add(entry.teamAddPacket);
-                }
-
                 assert entry.updateDisplayNamePacket != null;
-                builder.add(entry.updateDisplayNamePacket);
+                viewerConnection.send(entry.updateDisplayNamePacket);
 
                 if(viewerEntry.initialized) {
-                    builder.add(new ClientboundSetScorePacket(
-                            playerName,
+                    viewerConnection.send(new ClientboundSetScorePacket(
+                            entry.player.getName(),
                             OBJECTIVE_NAME,
                             1,
                             Optional.empty(),
@@ -263,16 +271,15 @@ public final class Tab {
                     ));
                 }
 
-                asNMS(viewer).connection.send(builder.build());
+                if(!entry.freshTeamName) continue;
+
+                viewerEntry.fakeTeams.put(entry.teamName, entry.player.getUniqueId());
+                assert entry.teamAddPacket != null;
+                asNMS(viewerEntry.player).connection.send(entry.teamAddPacket);
             }
 
+            entry.previousTeamName = null;
             entry.freshTeamName = false;
-
-            // update header and footer
-            asNMS(player).connection.send(new ClientboundTabListPacket(
-                    buildHeaderOrFooter(configuration.header, player, HEADER_FOOTER_PLACEHOLDERS),
-                    buildHeaderOrFooter(configuration.footer, player, HEADER_FOOTER_PLACEHOLDERS)
-            ));
         }
     }
 
