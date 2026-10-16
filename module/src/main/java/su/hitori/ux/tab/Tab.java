@@ -16,9 +16,9 @@ import org.jspecify.annotations.Nullable;
 import su.hitori.api.Hitori;
 import su.hitori.api.Pair;
 import su.hitori.api.logging.LoggerFactory;
+import su.hitori.api.nms.PacketBundleBuilder;
 import su.hitori.api.util.LoggerUtil;
 import su.hitori.api.util.Pipeline;
-import su.hitori.api.util.Task;
 import su.hitori.api.util.Text;
 import su.hitori.ux.UXModule;
 import su.hitori.ux.config.UXConfiguration;
@@ -29,6 +29,8 @@ import su.hitori.ux.storage.DataContainer;
 
 import java.lang.reflect.Constructor;
 import java.util.*;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import static su.hitori.api.nms.NMSUtil.asNMS;
@@ -77,7 +79,7 @@ public final class Tab {
     private final Pipeline<Comparator<TabEntry>> sorters;
     private final UXConfiguration.Tab configuration;
 
-    private Task task;
+    private ScheduledFuture<?> task;
 
     public Tab(UXModule uxModule) {
         this.uxModule = uxModule;
@@ -114,10 +116,11 @@ public final class Tab {
     public void start() {
         if(task != null || !UXConfiguration.I.tab.enabled) return;
 
-        task = Task.runTaskTimerAsync(
+        task = uxModule.executorService().scheduleWithFixedDelay(
                 this::updateAsync,
-                1L,
-                Math.max(1, configuration.updateIntervalSeconds) * 20L
+                50L,
+                Math.max(1, configuration.updateIntervalSeconds) * 1000L,
+                TimeUnit.MILLISECONDS
         );
 
         Bukkit.getOnlinePlayers().forEach(this::addPlayer);
@@ -155,7 +158,7 @@ public final class Tab {
             entry.fakeTeams.clear();
         }
         tabEntries.clear();
-        task.cancel();
+        task.cancel(true);
         task = null;
     }
 
@@ -172,7 +175,7 @@ public final class Tab {
         ClientboundSetPlayerTeamPacket packet = createRemovePacket(teamName);
 
         for (TabEntry viewer : viewers) {
-            asNMS(viewer.player).connection.send(packet);
+            viewer.temporaryPacketBundle.add(packet);
             viewer.fakeTeams.remove(teamName);
         }
     }
@@ -187,6 +190,7 @@ public final class Tab {
 
         for (int i = 0; i < listSize; i++) {
             TabEntry entry = list.get(i);
+            entry.temporaryPacketBundle = new PacketBundleBuilder();
             Player player = entry.player;
 
             String playerName = player.getName();
@@ -216,11 +220,11 @@ public final class Tab {
                 Objective objective = scoreboard.getObjective(OBJECTIVE_NAME);
                 assert objective != null;
                 if(!entry.initialized) {
-                    serverPlayer.connection.send(new ClientboundSetObjectivePacket(
+                    entry.temporaryPacketBundle.add(new ClientboundSetObjectivePacket(
                             objective,
                             ClientboundSetObjectivePacket.METHOD_ADD
                     ));
-                    serverPlayer.connection.send(new ClientboundSetDisplayObjectivePacket(
+                    entry.temporaryPacketBundle.add(new ClientboundSetDisplayObjectivePacket(
                             DisplaySlot.LIST,
                             objective
                     ));
@@ -234,7 +238,7 @@ public final class Tab {
                 ))));
             }
 
-            asNMS(player).connection.send(new ClientboundTabListPacket(
+            entry.temporaryPacketBundle.add(new ClientboundTabListPacket(
                     buildHeaderOrFooter(configuration.header, player, HEADER_FOOTER_PLACEHOLDERS),
                     buildHeaderOrFooter(configuration.footer, player, HEADER_FOOTER_PLACEHOLDERS)
             ));
@@ -248,21 +252,21 @@ public final class Tab {
 
         for (TabEntry entry : list) {
             for (TabEntry viewerEntry : list) {
-                var viewerConnection = asNMS(viewerEntry.player).connection;
+                var viewerConnection = viewerEntry.temporaryPacketBundle;
 
                 if(viewerEntry != entry) {
                     Pair<Boolean, Boolean> listed = entry.isListed(viewerEntry);
                     if(listed.first())
-                        viewerConnection.send(ClientboundPlayerInfoUpdatePacket.updateListed(entry.player.getUniqueId(), listed.second()));
+                        viewerConnection.add(ClientboundPlayerInfoUpdatePacket.updateListed(entry.player.getUniqueId(), listed.second()));
 
                     if(!listed.second()) continue;
                 }
 
                 assert entry.updateDisplayNamePacket != null;
-                viewerConnection.send(entry.updateDisplayNamePacket);
+                viewerConnection.add(entry.updateDisplayNamePacket);
 
                 if(viewerEntry.initialized) {
-                    viewerConnection.send(new ClientboundSetScorePacket(
+                    viewerConnection.add(new ClientboundSetScorePacket(
                             entry.player.getName(),
                             OBJECTIVE_NAME,
                             1,
@@ -280,6 +284,11 @@ public final class Tab {
 
             entry.previousTeamName = null;
             entry.freshTeamName = false;
+        }
+
+        for (TabEntry entry : list) {
+            asNMS(entry.player).connection.send(entry.temporaryPacketBundle.build());
+            entry.temporaryPacketBundle = null;
         }
     }
 

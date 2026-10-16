@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.Nullable;
 import su.hitori.api.Pair;
+import su.hitori.api.nms.PacketBundleBuilder;
 import su.hitori.api.util.Pipeline;
 import su.hitori.ux.storage.DataContainer;
 
@@ -31,6 +32,7 @@ public final class TabEntry implements Comparable<TabEntry> {
     boolean freshTeamName = true;
     @Nullable ClientboundSetPlayerTeamPacket teamAddPacket;
     @Nullable ClientboundPlayerInfoUpdatePacket updateDisplayNamePacket;
+    @Nullable PacketBundleBuilder temporaryPacketBundle;
 
     TabEntry(Player player, DataContainer container, Pipeline<Comparator<TabEntry>> sorters, Predicate<Player> listedPredicate) {
         this.player = player;
