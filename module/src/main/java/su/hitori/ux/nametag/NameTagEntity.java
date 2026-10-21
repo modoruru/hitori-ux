@@ -111,16 +111,19 @@ final class NameTagEntity {
             createTask();
         }
 
-        if(lying && !prevLyingState) {
-            prevLyingState = true;
-            player.removePassenger(textDisplay);
-            textDisplay.teleportAsync(player.getLocation().add(0, 1, 0));
-            textDisplay.getPersistentDataContainer().set(NameTags.FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
+        if(lying) {
+            if(!prevLyingState) {
+                prevLyingState = true;
+                player.removePassenger(textDisplay);
+                textDisplay.teleportAsync(player.getLocation().add(0, 1, 0));
+                textDisplay.getPersistentDataContainer().set(NameTags.FOR_REMOVAL, PersistentDataType.BOOLEAN, true);
+            }
         }
         else if(player.getPassengers().isEmpty()) {
             player.addPassenger(textDisplay);
             prevLyingState = false;
         }
+
 
         Location location = player.getLocation();
         if(location.getWorld() != textDisplay.getWorld()) {
