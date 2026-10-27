@@ -305,6 +305,12 @@ public final class Chat {
         while ((index = content.indexOf(substringToFind, indexThreshold)) != -1) {
             if(index >= content.length() -1) break;
 
+            final int endIndex = index + substringLength;
+            if (index > 0 && Character.isLetterOrDigit(content.charAt(index - 1)) || endIndex < content.length() && Character.isLetterOrDigit(content.charAt(endIndex))) {
+                indexThreshold = index + 1;
+                continue;
+            }
+
             if(formattedMention == null) {
                 formattedMention = Placeholders.resolveDynamic(UXConfiguration.I.chat.mentions.formatting, player, PLAYER_NAME_PLACEHOLDER);
                 formattedMentionLength = formattedMention.length();
@@ -315,9 +321,9 @@ public final class Chat {
             content.replace(index, index + substringLength, formattedMention);
         }
 
-        if(indexThreshold != 0 && mentioned != null) mentioned.add(player);
+        if(formattedMention != null && mentioned != null) mentioned.add(player);
 
-        return indexThreshold != 0;
+        return formattedMention != null;
     }
 
     public void sendPreProcessed(final PreProcessedMessage message) {

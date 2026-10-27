@@ -202,6 +202,7 @@ public final class Tab {
 
                 PlayerTeam team = new PlayerTeam(scoreboard, teamName);
                 team.setNameTagVisibility(Team.Visibility.NEVER);
+                team.setSeeFriendlyInvisibles(false);
                 team.getPlayers().add(playerName);
                 entry.team = team;
                 entry.teamAddPacket = ClientboundSetPlayerTeamPacket.createAddOrModifyPacket(team, true);

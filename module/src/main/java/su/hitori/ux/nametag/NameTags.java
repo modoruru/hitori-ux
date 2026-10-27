@@ -34,6 +34,7 @@ public final class NameTags {
         this.tags = new HashMap<>();
 
         playerTeam.setNameTagVisibility(Team.Visibility.NEVER);
+        playerTeam.setSeeFriendlyInvisibles(false);
     }
 
     boolean isLying(Player player) {
