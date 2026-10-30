@@ -12,6 +12,7 @@ dependencies {
 
     implementation("org.java-websocket:Java-WebSocket:${property("websocket_version")}")
     implementation("com.h2database:h2:${property("h2_version")}")
+    implementation("fun.lofe:stop-spying-on-your-players-messages:1.0.0+26.3")
 }
 
 tasks {

@@ -280,7 +280,7 @@ public final class Tab {
 
                 viewerEntry.fakeTeams.put(entry.teamName, entry.player.getUniqueId());
                 assert entry.teamAddPacket != null;
-                asNMS(viewerEntry.player).connection.send(entry.teamAddPacket);
+                viewerConnection.add(entry.teamAddPacket);
             }
 
             entry.previousTeamName = null;

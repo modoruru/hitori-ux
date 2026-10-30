@@ -1,5 +1,6 @@
 package su.hitori.ux.chat;
 
+import fun.lofe.ssoypm.StopSpyingOnYourPlayersMessages;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TranslatableComponent;
@@ -42,6 +43,8 @@ public final class ChatListener implements Listener {
         Player player = event.getPlayer();
         event.joinMessage(null);
         callOnlineMessageEvent(player, true);
+
+        StopSpyingOnYourPlayersMessages.stopSpying(player);
 
         UUID uuid = player.getUniqueId();
         Bukkit.getOnlinePlayers().parallelStream()
