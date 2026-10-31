@@ -12,7 +12,9 @@ import su.hitori.api.nms.PacketBundleBuilder;
 import su.hitori.api.util.Pipeline;
 import su.hitori.ux.storage.DataContainer;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public final class TabEntry implements Comparable<TabEntry> {
@@ -22,7 +24,7 @@ public final class TabEntry implements Comparable<TabEntry> {
     final Pipeline<Comparator<TabEntry>> sorters;
     final Predicate<Player> listedPredicate;
     final Set<TabEntry> unlisted;
-    final Map<String, UUID> fakeTeams;
+    final Set<String> fakeTeams;
 
     boolean initialized;
     NumberFormat objectiveValue;
@@ -40,7 +42,7 @@ public final class TabEntry implements Comparable<TabEntry> {
         this.sorters = sorters;
         this.listedPredicate = listedPredicate;
         this.unlisted = new HashSet<>();
-        this.fakeTeams = new HashMap<>();
+        this.fakeTeams = new HashSet<>();
     }
 
     public Player player() {

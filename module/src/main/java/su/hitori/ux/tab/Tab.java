@@ -151,11 +151,6 @@ public final class Tab {
                         ClientboundSetObjectivePacket.METHOD_REMOVE
                 ));
             }
-
-            for (String team : entry.fakeTeams.keySet()) {
-                serverPlayer.connection.send(createRemovePacket(team));
-            }
-            entry.fakeTeams.clear();
         }
         tabEntries.clear();
         task.cancel(true);
@@ -168,15 +163,6 @@ public final class Tab {
         }
         catch (Exception e) {
             LOGGER.warning(LoggerUtil.exceptionToString(e));
-        }
-    }
-
-    private void removeTeamFromViewers(String teamName, Collection<TabEntry> viewers) {
-        ClientboundSetPlayerTeamPacket packet = createRemovePacket(teamName);
-
-        for (TabEntry viewer : viewers) {
-            viewer.temporaryPacketBundle.add(packet);
-            viewer.fakeTeams.remove(teamName);
         }
     }
 
@@ -247,8 +233,8 @@ public final class Tab {
 
         // remove teams old info
         for (TabEntry entry : list) {
-            if (entry.previousTeamName != null && entry.freshTeamName)
-                removeTeamFromViewers(entry.previousTeamName, list);
+            for (String fakeTeam : entry.fakeTeams)
+                entry.temporaryPacketBundle.add(createRemovePacket(fakeTeam));
         }
 
         for (TabEntry entry : list) {
@@ -276,11 +262,9 @@ public final class Tab {
                     ));
                 }
 
-                if(!entry.freshTeamName) continue;
-
-                viewerEntry.fakeTeams.put(entry.teamName, entry.player.getUniqueId());
                 assert entry.teamAddPacket != null;
                 viewerConnection.add(entry.teamAddPacket);
+                viewerEntry.fakeTeams.add(entry.teamName);
             }
 
             entry.previousTeamName = null;
